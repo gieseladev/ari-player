@@ -9,6 +9,9 @@ verify_ssl = true
 andesite-py = "*"
 aioredis = "*"
 autobahn = "*"
+konfi = "*"
+click = "*"
+uvloop = {markers="sys_platform != 'win32'"}
 
 [requires]
 python_version = "3.7"

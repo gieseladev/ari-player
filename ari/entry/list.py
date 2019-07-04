@@ -1,11 +1,9 @@
-"""Queue system."""
-
 import abc
-from typing import Optional
+from typing import List, Optional, Union, overload
 
-import aioredis
+from .entry import Entry
 
-__all__ = ["EntryListABC", "RedisEntryList"]
+__all__ = ["EntryListABC"]
 
 
 class EntryListABC(abc.ABC):
@@ -20,16 +18,25 @@ class EntryListABC(abc.ABC):
         """
         ...
 
+    @overload
+    async def get(self, index: int) -> Optional[Entry]: ...
+
+    @overload
+    async def get(self, index: slice) -> List[Entry]: ...
+
     @abc.abstractmethod
-    async def get(self, index: int) -> Optional[str]:
+    async def get(self, index: Union[int, slice]) -> Union[Optional[Entry], List[Entry]]:
         """Get the entry at the given index.
 
         Args:
-            index: Index of the entry to get.
+            index: Index of the entry to get, or a slice object
+                to get a range of entries.
 
         Returns:
-            Entry at the given index or `None` if no entry
-            exists at the given index.
+            If given an index, it returns an `Entry` at the given index or
+            `None` if no entry exists at the given index.
+
+            In the case of a slice the return value is a list of `Entry`.
         """
         ...
 
@@ -47,7 +54,7 @@ class EntryListABC(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def add_front(self, entry: str) -> None:
+    async def add_start(self, entry: Entry) -> None:
         """Add an entry to the front of the list.
 
         Args:
@@ -56,7 +63,7 @@ class EntryListABC(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def add_end(self, entry: str) -> None:
+    async def add_end(self, entry: Entry) -> None:
         """Add an entry to the end of the list.
 
         Args:
@@ -74,25 +81,12 @@ class EntryListABC(abc.ABC):
         """Shuffle the entry list."""
         ...
 
+    @abc.abstractmethod
+    async def pop_start(self) -> Optional[Entry]:
+        """Pop from the start of the list."""
+        ...
 
-class RedisEntryList(EntryListABC):
-    """Entry list which uses redis to store the list."""
-
-    _redis: aioredis.Redis
-    _list_key: str
-
-    def __init__(self, redis: aioredis.Redis, queue_key: str) -> None:
-        self._redis = redis
-        self._list_key = queue_key
-
-    async def get_length(self) -> int:
-        return await self._redis.llen(self._list_key)
-
-    async def get(self, index: int) -> Optional[str]:
-        return await self._redis.lindex(self._list_key, index)
-
-    async def add_end(self, entry: str) -> None:
-        await self._redis.rpush(self._list_key, entry)
-
-    async def clear(self) -> None:
-        await self._redis.delete(self._list_key)
+    @abc.abstractmethod
+    async def pop_end(self) -> Optional[Entry]:
+        """Pop from the end of the list."""
+        ...

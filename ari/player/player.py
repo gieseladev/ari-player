@@ -1,17 +1,11 @@
-"""Ari players."""
-
 import abc
 from typing import Optional
 
-import aioredis
-from andesite import Player
+import ari
 
-from .entry_list import EntryListABC, RedisEntryList
-
-__all__ = ["PlayerABC", "Player"]
+__all__ = ["PlayerABC"]
 
 
-# TODO: volume
 class PlayerABC(abc.ABC):
     """Ari player."""
 
@@ -23,19 +17,29 @@ class PlayerABC(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def queue(self) -> EntryListABC:
+    def queue(self) -> ari.EntryListABC:
         """Queued entry list."""
         ...
 
     @property
     @abc.abstractmethod
-    def history(self) -> EntryListABC:
+    def history(self) -> ari.EntryListABC:
         """Past entry list."""
         ...
 
     @abc.abstractmethod
-    async def get_current(self) -> Optional[str]:
+    async def get_current(self) -> Optional[ari.Entry]:
         """Get the current entry."""
+        ...
+
+    @abc.abstractmethod
+    async def get_volume(self) -> float:
+        """Get the volume as a percentage."""
+        ...
+
+    @abc.abstractmethod
+    async def set_volume(self, value: float) -> None:
+        """Set the volume."""
         ...
 
     @abc.abstractmethod
@@ -53,7 +57,11 @@ class PlayerABC(abc.ABC):
 
     @abc.abstractmethod
     async def seek(self, position: float) -> None:
-        """Seek the current song to the given position."""
+        """Seek the current song to the given position.
+
+        If the position is outside the range of the current track, skip
+        to the next entry.
+        """
         ...
 
     @abc.abstractmethod
@@ -82,37 +90,3 @@ class PlayerABC(abc.ABC):
         entry.
         """
         ...
-
-
-class RedisPlayer(PlayerABC):
-    """Player using Redis."""
-
-    _redis: aioredis.Redis
-    _player_key: str
-
-    _guild_id: int
-    _queue: RedisEntryList
-    _history: RedisEntryList
-
-    def __init__(self, redis: aioredis.Redis, player_key: str, guild_id: int) -> None:
-        self._redis = redis
-        self._player_key = player_key
-
-        self._guild_id = guild_id
-        self._queue = RedisEntryList(redis, f"{player_key}:queue")
-        self._history = RedisEntryList(redis, f"{player_key}:history")
-
-    @property
-    def guild_id(self) -> int:
-        return self._guild_id
-
-    @property
-    def queue(self) -> EntryListABC:
-        return self._queue
-
-    @property
-    def history(self) -> EntryListABC:
-        return self._history
-
-    async def get_current(self) -> Optional[str]:
-        pass
