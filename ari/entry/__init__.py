@@ -2,4 +2,4 @@
 
 from .entry import *
 from .list import *
-from .redis import *
+from .redis import RedisEntryList

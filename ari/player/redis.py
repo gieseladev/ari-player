@@ -7,6 +7,7 @@ import andesite
 from andesite import Player, VoiceServerUpdate
 
 import ari
+from ari.entry.redis import maybe_decode_entry
 from .player import PlayerABC
 
 __all__ = ["RedisPlayer"]
@@ -63,15 +64,18 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
 
         return player.volume
 
+    async def get_position(self) -> Optional[float]:
+        player = await self.get_player()
+        if player is None:
+            return None
+
+        return player.live_position
+
     async def set_volume(self, value: float) -> None:
         await self._andesite_ws.volume(self.guild_id, value)
 
     async def get_current(self) -> Optional[ari.Entry]:
-        aid, eid = await self._redis.hmget(f"{self._player_key}:current", "aid", "eid")
-        if aid and eid:
-            return ari.Entry(aid, eid)
-        else:
-            return None
+        return maybe_decode_entry(await self._redis.get(f"{self._player_key}:current"))
 
     async def pause(self, pause: bool) -> None:
         await self._andesite_ws.pause(self.guild_id, pause)
@@ -87,6 +91,7 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
             await self.stop()
             return
 
+        raise NotImplementedError
         track = await self._manager.get_lp_track(entry.eid)
         await self._andesite_ws.play(self.guild_id, track)
 
@@ -94,13 +99,12 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
         entry = await self.queue.pop_start()
         await self._play(entry)
 
-    # TODO signature
-    async def _get_current_track_info(self) -> Any:
+    async def _get_current_track_info(self) -> Optional[ari.ElakshiTrack]:
         entry = await self.get_current()
         if entry is None:
             return None
         else:
-            return self._manager.get_track_info(entry.eid)
+            return await self._manager.get_track_info(entry.eid)
 
     async def next_chapter(self) -> None:
         info = await self._get_current_track_info()

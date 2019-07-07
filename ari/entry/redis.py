@@ -5,7 +5,7 @@ import aioredis
 from .entry import Entry
 from .list import EntryListABC
 
-__all__ = ["RedisEntryList"]
+__all__ = ["RedisEntryList", "encode_entry", "decode_entry", "maybe_decode_entry"]
 
 
 def encode_entry(entry: Entry) -> str:
@@ -13,7 +13,7 @@ def encode_entry(entry: Entry) -> str:
 
 
 def decode_entry(data: str) -> Entry:
-    aid, eid = data.split(",")
+    aid, eid = data.split(",", 1)
     return Entry(aid, eid)
 
 
@@ -24,6 +24,7 @@ def maybe_decode_entry(data: str) -> Optional[Entry]:
         return decode_entry(data)
 
 
+# TODO use ordered set for aids and {aid: details like eid} hash map
 class RedisEntryList(EntryListABC):
     """Entry list which uses redis to store the list."""
 
@@ -59,7 +60,13 @@ class RedisEntryList(EntryListABC):
             entries = await self._redis.lrange(self._list_key, start, stop - 1)
             return list(map(decode_entry, entries[::step]))
 
-    async def move(self, from_index: int, to_index: int) -> bool:
+    async def remove(self, entry: Union[Entry, str]) -> bool:
+        if isinstance(entry, str):
+            entry = await self.get_entry(entry)
+
+        await self._redis.lrem(self._list_key, 1, encode_entry(entry))
+
+    async def move(self, entry: Union[Entry, str], to_index: int) -> bool:
         # TODO use Lua
         raise NotImplementedError
 

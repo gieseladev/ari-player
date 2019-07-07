@@ -3,7 +3,7 @@ from typing import List, Optional, Union, overload
 
 from .entry import Entry
 
-__all__ = ["EntryListABC"]
+__all__ = ["EntryListABC", "get_entry_list_page"]
 
 
 class EntryListABC(abc.ABC):
@@ -41,11 +41,23 @@ class EntryListABC(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def move(self, from_index: int, to_index: int) -> bool:
+    async def remove(self, entry: Union[Entry, str]) -> bool:
+        """Remove an entry from the list.
+
+        Args:
+            entry: Entry to remove. Can be an `Entry` or just the aid.
+
+        Returns:
+            Whether or not the entry was successfully removed.
+        """
+        ...
+
+    @abc.abstractmethod
+    async def move(self, entry: Union[Entry, str], to_index: int) -> bool:
         """Move an entry in the list.
 
         Args:
-            from_index: Index to move the entry from.
+            entry: Entry to move.
             to_index: Index to move the entry to.
 
         Returns:
@@ -90,3 +102,10 @@ class EntryListABC(abc.ABC):
     async def pop_end(self) -> Optional[Entry]:
         """Pop from the end of the list."""
         ...
+
+
+async def get_entry_list_page(l: EntryListABC, page: int, entries_per_page: int) -> List[Entry]:
+    """Get a page of entries."""
+    start = page * entries_per_page
+    end = start + entries_per_page
+    return await l.get(slice(start, end))

@@ -11,9 +11,5 @@ class PlayerManagerABC(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def get_track_info(self, eid: str) -> None:
-        ...
-
-    @abc.abstractmethod
-    async def get_lp_track(self, eid: str) -> str:
+    async def get_track_info(self, eid: str) -> ari.ElakshiTrack:
         ...

@@ -1,4 +1,5 @@
 import uuid
+from typing import Dict
 
 __all__ = ["Entry", "new_aid"]
 
@@ -28,6 +29,9 @@ class Entry:
 
     def __hash__(self) -> int:
         return hash(self.aid)
+
+    def as_dict(self) -> Dict[str, str]:
+        return {"aid": self.aid, "eid": self.eid}
 
 
 def new_aid() -> str:

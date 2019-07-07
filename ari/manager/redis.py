@@ -12,6 +12,7 @@ from .manager import PlayerManagerABC
 __all__ = ["PlayerManager"]
 
 
+# TODO merge into AriServer directly
 class PlayerManager(PlayerManagerABC, andesite.AbstractAndesiteState):
     __slots__ = ("_redis", "_manager_key", "_andesite_ws")
 
@@ -38,10 +39,7 @@ class PlayerManager(PlayerManagerABC, andesite.AbstractAndesiteState):
             self._players[guild_id] = player
             return player
 
-    async def get_track_info(self, eid: str) -> None:
-        raise NotImplementedError
-
-    async def get_lp_track(self, eid: str) -> str:
+    async def get_track_info(self, eid: str) -> ari.ElakshiTrack:
         raise NotImplementedError
 
     async def handle_player_update(self, update: PlayerUpdate) -> None:

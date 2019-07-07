@@ -1,4 +1,4 @@
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Optional, Tuple
 
 import konfi
 
@@ -12,13 +12,14 @@ class Redis:
     """Config for redis"""
     address: str
     namespace: str = "ari"
+    database: int = 0
 
 
 @konfi.template()
 class AndesiteNode:
     """Config for an Andesite node"""
     url: str
-    password: str
+    password: Optional[str]
 
     def as_tuple(self) -> Tuple[str, str]:
         return self.url, self.password

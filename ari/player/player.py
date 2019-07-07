@@ -33,6 +33,11 @@ class PlayerABC(abc.ABC):
         ...
 
     @abc.abstractmethod
+    async def get_position(self) -> Optional[float]:
+        """Get the position in seconds."""
+        ...
+
+    @abc.abstractmethod
     async def get_volume(self) -> float:
         """Get the volume as a percentage."""
         ...
