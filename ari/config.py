@@ -1,4 +1,4 @@
-from typing import Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import konfi
 
@@ -36,13 +36,34 @@ class Andesite:
 
 
 @konfi.template()
+class Transport:
+    """Transport configuration."""
+    type: str = "websocket"
+    url: str
+
+    def as_dict(self) -> Dict[str, str]:
+        return {
+            "type": self.type,
+            "url": self.url,
+        }
+
+
+@konfi.template()
 class Config:
     """Ari configuration"""
     redis: Redis
     andesite: Andesite
 
-    giesela_uri: str = "io.giesela"
-    realm: str = "internal"
+    realm: str
+    transports: Union[List[Transport], str]
+
+    def get_transports(self) -> Union[List[Dict[str, str]], str]:
+        """Get the transports configuration in the format required by
+        the component constructor."""
+        if isinstance(self.transports, str):
+            return self.transports
+        else:
+            return [transport.as_dict() for transport in self.transports]
 
 
 def load_config(config_file: str) -> Config:

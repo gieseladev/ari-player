@@ -27,6 +27,11 @@ class PlayerABC(abc.ABC):
         """Past entry list."""
         ...
 
+    # @abc.abstractmethod
+    # async def get_channel_id(self) -> Optional[int]:
+    #     """Get the channel the player is connected to."""
+    #     ...
+
     @abc.abstractmethod
     async def get_current(self) -> Optional[ari.Entry]:
         """Get the current entry."""
@@ -45,6 +50,11 @@ class PlayerABC(abc.ABC):
     @abc.abstractmethod
     async def set_volume(self, value: float) -> None:
         """Set the volume."""
+        ...
+
+    @abc.abstractmethod
+    async def get_paused(self) -> bool:
+        """Get the current paused state of the player."""
         ...
 
     @abc.abstractmethod
@@ -94,4 +104,14 @@ class PlayerABC(abc.ABC):
         If the current entry doesn't have a previous chapter, play the previous
         entry.
         """
+        ...
+
+    @abc.abstractmethod
+    async def on_connect(self, channel_id: int) -> None:
+        """Called when the player connects"""
+        ...
+
+    @abc.abstractmethod
+    async def on_disconnect(self) -> None:
+        """Called when the player is disconnected."""
         ...

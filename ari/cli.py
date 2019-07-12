@@ -30,7 +30,7 @@ def _setup_logging() -> None:
 
 async def run(config: ari.Config, *, loop: asyncio.AbstractEventLoop) -> None:
     server = await ari.create_ari_server(config, loop=loop)
-    component = ari.create_component(server)
+    component = ari.create_component(server, config)
 
     log.info("starting component")
     await component.start(loop=loop)
