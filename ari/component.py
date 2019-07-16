@@ -171,7 +171,7 @@ async def create_ari_server(config: ari.Config, *, loop: asyncio.AbstractEventLo
                                                 user_id=config.andesite.user_id,
                                                 loop=loop)
     server = AriServer(redis, config.redis.namespace, andesite_ws)
-    andesite_ws.state = andesite.AndesiteState[Any](state_factory=server.get_player)
+    andesite_ws.state = andesite.AndesiteState(state_factory=server.get_player)
 
     return server
 
@@ -180,15 +180,15 @@ def create_component(server: AriServer, config: ari.Config) -> Component:
     """Create the WAMP component."""
     component = Component(
         realm=config.realm,
-        transports=config.get_transports(),
+        transports=config.transports,
     )
 
     @component.on_join
     async def joined(session: ISession, details: SessionDetails) -> None:
-        log.info("joined session %s: %s", session, details)
+        log.info("joined session (realm: %s)", details.realm)
         server._session = session
 
-        await session.register(server, preifx=f"io.giesela.ari.")
+        await session.register(server, prefix=f"io.giesela.ari.")
         await session.subscribe(server)
 
     return component

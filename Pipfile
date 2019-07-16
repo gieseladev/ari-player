@@ -11,7 +11,8 @@ aioredis = "*"
 autobahn = "*"
 konfi = "*"
 click = "*"
-uvloop = {markers="sys_platform != 'win32'"}
+uvloop = {markers = "sys_platform != 'win32'"}
+cbor = "*"
 
 [requires]
 python_version = "3.7"
