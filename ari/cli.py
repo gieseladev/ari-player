@@ -1,9 +1,10 @@
+import argparse
 import asyncio
 import logging
+from typing import TYPE_CHECKING
 
-import click
-
-import ari
+if TYPE_CHECKING:
+    from ari import Config as AriConfig
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +29,9 @@ def _setup_logging() -> None:
     root.addHandler(stream_handler)
 
 
-async def run(config: ari.Config, *, loop: asyncio.AbstractEventLoop) -> None:
+async def run(config: "AriConfig", *, loop: asyncio.AbstractEventLoop) -> None:
+    import ari
+
     server = await ari.create_ari_server(config, loop=loop)
     component = ari.create_component(server, config)
 
@@ -36,14 +39,28 @@ async def run(config: ari.Config, *, loop: asyncio.AbstractEventLoop) -> None:
     await component.start(loop=loop)
 
 
-@click.command()
-@click.option("--config", "-c", type=click.Path(), default="config.toml")
-def main(config: str) -> None:
-    """Run the Ari Component."""
-    _setup_logging()
-    _install_uvloop()
+def get_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser()
 
-    c = ari.load_config(config)
+    parser.add_argument("-c", "--config", default="config.toml", help="specify the location of the config file.")
+    parser.add_argument("--no-uvloop", action="store_true", default=False,
+                        help="disable the use of uvloop. On Windows this is true regardless")
+
+    return parser
+
+
+def main() -> None:
+    """Run the Ari Component."""
+    args = get_parser().parse_args()
+
+    _setup_logging()
+
+    if not args.no_uvloop:
+        _install_uvloop()
+
+    import ari
+
+    c = ari.load_config(args.config)
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(run(c, loop=loop))

@@ -2,6 +2,9 @@
 
 Giesela's player service
 
+Heed my advice and don't try to build the docker image yourself. It 
+takes ages to build.
+
 
 ## Required Components
 

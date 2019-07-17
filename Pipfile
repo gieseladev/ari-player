@@ -10,7 +10,6 @@ andesite-py = "*"
 aioredis = "*"
 autobahn = "*"
 konfi = "*"
-click = "*"
 uvloop = {markers = "sys_platform != 'win32'"}
 cbor = "*"
 
