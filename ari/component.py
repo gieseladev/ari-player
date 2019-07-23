@@ -3,27 +3,31 @@ from __future__ import annotations
 import asyncio
 import logging
 import weakref
-from typing import Any, Dict, List, Optional
+from typing import Any, Awaitable, Dict, List, Optional
 
+import aiobservable
 import aioredis
 import andesite
+from aiobservable.abstract import T
 from autobahn.asyncio.component import Component
-from autobahn.wamp import ISession, SessionDetails, register, subscribe
+from autobahn.wamp import ISession, PublishOptions, SessionDetails, register, subscribe
 
 import ari
+from ari import events
 
 __all__ = ["AriServer", "create_ari_server", "create_component"]
 
 log = logging.getLogger(__name__)
 
 
-class AriServer(ari.PlayerManagerABC, andesite.AbstractAndesiteState):
-    __slots__ = ("config",
+class AriServer(ari.PlayerManagerABC, andesite.AbstractAndesiteState, aiobservable.abstract.ChildEmitterABC):
+    __slots__ = ("loop", "config",
                  "_redis", "_manager_key", "_andesite_ws",
                  "_players",
                  "_session",
                  "_voice_session_id")
 
+    loop: asyncio.AbstractEventLoop
     config: ari.Config
 
     _redis: aioredis.Redis
@@ -36,8 +40,12 @@ class AriServer(ari.PlayerManagerABC, andesite.AbstractAndesiteState):
 
     _voice_session_id: Optional[str]
 
-    def __init__(self, redis: aioredis.Redis, manager_key: str,
-                 andesite_ws: andesite.AndesiteWebSocketInterface) -> None:
+    def __init__(self, config: ari.Config, redis: aioredis.Redis, manager_key: str,
+                 andesite_ws: andesite.AndesiteWebSocketInterface, *,
+                 loop: asyncio.AbstractEventLoop = None) -> None:
+        self.config = config
+        self.loop = loop or asyncio.get_event_loop()
+
         self._redis = redis
         self._manager_key = manager_key
         self._andesite_ws = andesite_ws
@@ -49,13 +57,28 @@ class AriServer(ari.PlayerManagerABC, andesite.AbstractAndesiteState):
 
         self._voice_session_id = None
 
+    def _create_player(self, guild_id: int) -> ari.RedisPlayer:
+        player = ari.RedisPlayer(self, self._redis, f"{self._manager_key}:{guild_id}", self._andesite_ws, guild_id)
+        player.observable.add_child(self)
+        return player
+
     def get_player(self, guild_id: int) -> ari.RedisPlayer:
         try:
             return self._players[guild_id]
         except KeyError:
-            player = ari.RedisPlayer(self, self._redis, f"{self._manager_key}:{guild_id}", self._andesite_ws, guild_id)
-            self._players[guild_id] = player
+            player = self._players[guild_id] = self._create_player(guild_id)
             return player
+
+    def emit(self, event: T) -> Awaitable[None]:
+        if isinstance(event, events.AriEvent):
+            kwargs = event.get_kwargs()
+            kwargs["options"] = PublishOptions(acknowledge=True)
+
+            return self._session.publish(event.uri, *event.get_args(), **kwargs)
+
+        fut = self.loop.create_future()
+        fut.set_result(None)
+        return fut
 
     async def get_track_info(self, eid: str) -> ari.ElakshiTrack:
         await self._session.call("io.giesela.elakshi.get", eid)
@@ -73,7 +96,7 @@ class AriServer(ari.PlayerManagerABC, andesite.AbstractAndesiteState):
     async def get(self, guild_id: int) -> andesite.AbstractPlayerState:
         return self.get_player(guild_id)
 
-    @subscribe("com.discord.voice_state_update")
+    @subscribe("com.discord.on_voice_state_update")
     async def on_voice_state_update(self, update: Any) -> None:
         if int(update["user_id"]) != self.config.andesite.user_id:
             return
@@ -89,12 +112,12 @@ class AriServer(ari.PlayerManagerABC, andesite.AbstractAndesiteState):
 
         channel_id = update["channel_id"]
 
-        if channel_id is None:
+        if not channel_id:
             await player.on_disconnect()
         else:
             await player.on_connect(int(channel_id))
 
-    @subscribe("com.discord.voice_server_update")
+    @subscribe("com.discord.on_voice_server_update")
     async def on_voice_server_update(self, update: Any) -> None:
         if self._voice_session_id is None:
             return
@@ -128,7 +151,7 @@ class AriServer(ari.PlayerManagerABC, andesite.AbstractAndesiteState):
         player = self.get_player(guild_id)
 
         entry = ari.Entry(ari.new_aid(), eid)
-        player.enqueue(entry)
+        await player.enqueue(entry)
 
         return entry.aid
 
@@ -170,7 +193,7 @@ async def create_ari_server(config: ari.Config, *, loop: asyncio.AbstractEventLo
     andesite_ws = andesite.create_andesite_pool((), config.andesite.get_node_tuples(),
                                                 user_id=config.andesite.user_id,
                                                 loop=loop)
-    server = AriServer(redis, config.redis.namespace, andesite_ws)
+    server = AriServer(config, redis, config.redis.namespace, andesite_ws, loop=loop)
     andesite_ws.state = andesite.AndesiteState(state_factory=server.get_player)
 
     return server

@@ -3,11 +3,11 @@ from typing import List, Optional, Union, overload
 
 from .entry import Entry
 
-__all__ = ["EntryListABC", "get_entry_list_page"]
+__all__ = ["EntryListABC", "MutEntryListABC", "get_entry_list_page"]
 
 
 class EntryListABC(abc.ABC):
-    """Entry list for keeping track of entries."""
+    """Read-only list over a collection of entries."""
 
     @abc.abstractmethod
     async def get_length(self) -> int:
@@ -39,6 +39,10 @@ class EntryListABC(abc.ABC):
             In the case of a slice the return value is a list of `Entry`.
         """
         ...
+
+
+class MutEntryListABC(EntryListABC, abc.ABC):
+    """Entry list for keeping track of entries."""
 
     @abc.abstractmethod
     async def remove(self, entry: Union[Entry, str]) -> bool:

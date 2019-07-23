@@ -12,6 +12,8 @@ autobahn = "*"
 konfi = "*"
 uvloop = {markers = "sys_platform != 'win32'"}
 cbor = "*"
+aiobservable = "*"
+lptrack = "*"
 
 [requires]
 python_version = "3.7"

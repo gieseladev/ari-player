@@ -1,6 +1,8 @@
 import abc
 from typing import Optional
 
+import aiobservable
+
 import ari
 
 __all__ = ["PlayerABC"]
@@ -11,6 +13,12 @@ class PlayerABC(abc.ABC):
 
     @property
     @abc.abstractmethod
+    def observable(self) -> aiobservable.Observable:
+        """The observable to use to emit events."""
+        ...
+
+    @property
+    @abc.abstractmethod
     def guild_id(self) -> int:
         """Guild id the player is for."""
         ...
@@ -18,13 +26,19 @@ class PlayerABC(abc.ABC):
     @property
     @abc.abstractmethod
     def queue(self) -> ari.EntryListABC:
-        """Queued entry list."""
+        """Queued entry list.
+
+        This is read-only!
+        """
         ...
 
     @property
     @abc.abstractmethod
     def history(self) -> ari.EntryListABC:
-        """Past entry list."""
+        """Past entry list.
+
+        This is read-only!
+        """
         ...
 
     # @abc.abstractmethod
@@ -43,6 +57,11 @@ class PlayerABC(abc.ABC):
         ...
 
     @abc.abstractmethod
+    async def connected(self) -> bool:
+        """Tell whether the player is connected to a voice channel."""
+        ...
+
+    @abc.abstractmethod
     async def get_volume(self) -> float:
         """Get the volume as a percentage."""
         ...
@@ -53,7 +72,7 @@ class PlayerABC(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def get_paused(self) -> bool:
+    async def paused(self) -> bool:
         """Get the current paused state of the player."""
         ...
 
@@ -103,6 +122,15 @@ class PlayerABC(abc.ABC):
 
         If the current entry doesn't have a previous chapter, play the previous
         entry.
+        """
+        ...
+
+    @abc.abstractmethod
+    async def enqueue(self, entry: ari.Entry) -> None:
+        """Add an entry to the queue.
+
+        Args:
+            entry: Entry to add to the queue.
         """
         ...
 

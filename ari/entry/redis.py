@@ -3,7 +3,7 @@ from typing import List, Optional, Union
 import aioredis
 
 from .entry import Entry
-from .list import EntryListABC
+from .list import MutEntryListABC
 
 __all__ = ["RedisEntryList", "encode_entry", "decode_entry", "maybe_decode_entry"]
 
@@ -12,20 +12,20 @@ def encode_entry(entry: Entry) -> str:
     return f"{entry.aid},{entry.eid}"
 
 
-def decode_entry(data: str) -> Entry:
-    aid, eid = data.split(",", 1)
+def decode_entry(data: bytes) -> Entry:
+    aid, eid = data.split(b",", 1)
     return Entry(aid, eid)
 
 
-def maybe_decode_entry(data: str) -> Optional[Entry]:
-    if data == "":
+def maybe_decode_entry(data: Optional[bytes]) -> Optional[Entry]:
+    if not data:
         return None
     else:
         return decode_entry(data)
 
 
 # TODO use ordered set for aids and {aid: details like eid} hash map
-class RedisEntryList(EntryListABC):
+class RedisEntryList(MutEntryListABC):
     """Entry list which uses redis to store the list."""
 
     __slots__ = ("_redis", "_list_key")
@@ -84,7 +84,7 @@ class RedisEntryList(EntryListABC):
         raise NotImplementedError
 
     async def pop_start(self) -> Optional[Entry]:
-        return maybe_decode_entry(self._redis.lpop(self._list_key))
+        return maybe_decode_entry(await self._redis.lpop(self._list_key))
 
     async def pop_end(self) -> Optional[Entry]:
-        return maybe_decode_entry(self._redis.rpop(self._list_key))
+        return maybe_decode_entry(await self._redis.rpop(self._list_key))
