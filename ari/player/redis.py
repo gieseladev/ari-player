@@ -90,6 +90,7 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
 
     async def on_disconnect(self) -> None:
         await self._redis.set(f"{self._player_key}:connected", b"0")
+        await self.pause(True)
 
     async def get_volume(self) -> float:
         player = await self._get_player()
@@ -118,7 +119,7 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
         return player.paused
 
     async def stop(self) -> None:
-        # TODO what does "stop" mean? Needs YouTrack discussion to move
+        # TODO what does "stop" mean?
         await self._andesite_ws.stop(self.guild_id)
         # TODO event
 
@@ -247,12 +248,16 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
         # elakshi_track = await self._manager.get_track_info(eid)
         # TODO create lp track from elakshi
         lp_track = lptrack.Track(
-            title="placeholder",
-            author="placeholder",
-            duration=205.,
-            identifier="Pkh8UtuejGw",
-            is_stream=False,
-            uri="https://www.youtube.com/watch?v=Pkh8UtuejGw",
+            version=None,
+            source=lptrack.Youtube(),
+            info=lptrack.TrackInfo(
+                title=eid,
+                author="placeholder",
+                duration=205.,
+                identifier="Pkh8UtuejGw",
+                is_stream=False,
+                uri="https://www.youtube.com/watch?v=Pkh8UtuejGw",
+            ),
         )
         return lptrack.encode(lp_track).decode()
 

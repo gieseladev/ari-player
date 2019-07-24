@@ -219,10 +219,10 @@
         },
         "lptrack": {
             "hashes": [
-                "sha256:16621207834645255b7ca3ebe606a6fb943367d0fda54a1468063ed3ce585bb3"
+                "sha256:880bdca28d16514e9bb71cd9121cf5ba3f2ce16c8d42a67c1623eb84367c8b63"
             ],
             "index": "pypi",
-            "version": "==0.0.1"
+            "version": "==0.1.0"
         },
         "multidict": {
             "hashes": [
