@@ -12,12 +12,12 @@ def encode_entry(entry: Entry) -> str:
     return f"{entry.aid},{entry.eid}"
 
 
-def decode_entry(data: bytes) -> Entry:
-    aid, eid = data.split(b",", 1)
+def decode_entry(data: str) -> Entry:
+    aid, eid = data.split(",", 1)
     return Entry(aid, eid)
 
 
-def maybe_decode_entry(data: Optional[bytes]) -> Optional[Entry]:
+def maybe_decode_entry(data: Optional[str]) -> Optional[Entry]:
     if not data:
         return None
     else:
@@ -42,7 +42,7 @@ class RedisEntryList(MutEntryListABC):
 
     async def get(self, index: Union[int, slice]) -> Union[Optional[Entry], List[Entry]]:
         if isinstance(index, int):
-            return maybe_decode_entry(await self._redis.lindex(self._list_key, index))
+            return maybe_decode_entry(await self._redis.lindex(self._list_key, index, encoding="utf-8"))
         else:
             # stop can't (?) be None
             start, stop, step = index.start, index.stop, index.step
@@ -84,7 +84,7 @@ class RedisEntryList(MutEntryListABC):
         raise NotImplementedError
 
     async def pop_start(self) -> Optional[Entry]:
-        return maybe_decode_entry(await self._redis.lpop(self._list_key))
+        return maybe_decode_entry(await self._redis.lpop(self._list_key, encoding="utf-8"))
 
     async def pop_end(self) -> Optional[Entry]:
-        return maybe_decode_entry(await self._redis.rpop(self._list_key))
+        return maybe_decode_entry(await self._redis.rpop(self._list_key, encoding="utf-8"))

@@ -108,7 +108,7 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
         return player.live_position
 
     async def get_current(self) -> Optional[ari.Entry]:
-        return maybe_decode_entry(await self._redis.get(f"{self._player_key}:current"))
+        return maybe_decode_entry(await self._redis.get(f"{self._player_key}:current", encoding="utf-8"))
 
     async def pause(self, pause: bool) -> None:
         await self._andesite_ws.pause(self.guild_id, pause)

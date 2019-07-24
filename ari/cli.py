@@ -18,6 +18,10 @@ def _install_uvloop() -> None:
         log.info("Using uvloop")
         uvloop.install()
 
+        # gotta update txaio too!
+        import txaio
+        txaio.config.loop = asyncio.get_event_loop()
+
 
 def _setup_logging() -> None:
     root = logging.getLogger()
