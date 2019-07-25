@@ -20,7 +20,7 @@ __all__ = ["AriServer", "create_ari_server", "create_component"]
 log = logging.getLogger(__name__)
 
 
-class AriServer(ari.PlayerManagerABC, andesite.AbstractAndesiteState, aiobservable.abstract.ChildEmitterABC):
+class AriServer(ari.PlayerManagerABC, andesite.AbstractState, aiobservable.ChildEmitterABC):
     __slots__ = ("loop", "config",
                  "_redis", "_manager_key", "_andesite_ws",
                  "_players",
@@ -32,7 +32,7 @@ class AriServer(ari.PlayerManagerABC, andesite.AbstractAndesiteState, aiobservab
 
     _redis: aioredis.Redis
     _manager_key: str
-    _andesite_ws: andesite.AndesiteWebSocketInterface
+    _andesite_ws: andesite.WebSocketInterface
 
     _players: weakref.WeakValueDictionary
 
@@ -41,8 +41,9 @@ class AriServer(ari.PlayerManagerABC, andesite.AbstractAndesiteState, aiobservab
     _voice_session_id: Optional[str]
 
     def __init__(self, config: ari.Config, redis: aioredis.Redis, manager_key: str,
-                 andesite_ws: andesite.AndesiteWebSocketInterface, *,
+                 andesite_ws: andesite.WebSocketInterface, *,
                  loop: asyncio.AbstractEventLoop = None) -> None:
+        super().__init__()
         self.config = config
         self.loop = loop or asyncio.get_event_loop()
 
@@ -190,11 +191,11 @@ async def create_ari_server(config: ari.Config, *, loop: asyncio.AbstractEventLo
     """Create the Ari server."""
     redis = await aioredis.create_redis_pool(config.redis.address, loop=loop)
     await redis.select(config.redis.database)
-    andesite_ws = andesite.create_andesite_pool((), config.andesite.get_node_tuples(),
-                                                user_id=config.andesite.user_id,
-                                                loop=loop)
+    andesite_ws = andesite.create_pool((), config.andesite.get_node_tuples(),
+                                       user_id=config.andesite.user_id,
+                                       loop=loop)
     server = AriServer(config, redis, config.redis.namespace, andesite_ws, loop=loop)
-    andesite_ws.state = andesite.AndesiteState(state_factory=server.get_player)
+    andesite_ws.state = andesite.State(state_factory=server.get_player)
 
     return server
 

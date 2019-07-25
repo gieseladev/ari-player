@@ -18,10 +18,10 @@
     "default": {
         "aiobservable": {
             "hashes": [
-                "sha256:6023ae2009b97a5727c5c9220484b34f52cf5b721071df7bf1f94f9ca9085aee"
+                "sha256:d1012b5c537f9456748aac5ca2a1745d979a703d6d4cf045ef1fbed99a4b5dd7"
             ],
             "index": "pypi",
-            "version": "==0.0.1"
+            "version": "==0.1.0"
         },
         "aiohttp": {
             "hashes": [
@@ -60,10 +60,10 @@
         },
         "andesite-py": {
             "hashes": [
-                "sha256:36991d38d6ca177383785315dd9e4b9c553bae3b9b6af633b138180d9a95d6dc"
+                "sha256:e0904875c3f6d851dc751aabcc8c3874a4eb413667e85075f97603e8b024a6e7"
             ],
             "index": "pypi",
-            "version": "==0.1.2"
+            "version": "==0.2.0"
         },
         "asn1crypto": {
             "hashes": [
@@ -212,10 +212,10 @@
         },
         "lettercase": {
             "hashes": [
-                "sha256:e6fe83ffac134e5bc7e71dd48f7ae40cd1e6356b658ad233ee0c8575eac52557",
-                "sha256:f2387a2b0b0782f32f5eca9f577a936333c7f04ecf548b8ef3eee5bb5b0d82cf"
+                "sha256:e0ce9a704d806bd839400713eb18914a05a9c91586d88e0b01e78b56a1016dd7",
+                "sha256:f396f73abb0e3f70b85723a0970043874ad75407442938e56ceb8d6d533ee5b8"
             ],
-            "version": "==0.3.0"
+            "version": "==0.3.1"
         },
         "lptrack": {
             "hashes": [

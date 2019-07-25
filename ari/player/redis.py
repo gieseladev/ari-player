@@ -9,7 +9,6 @@ from typing import Any, Callable, Optional, Awaitable
 import aiobservable
 import aioredis
 import andesite
-from andesite import Player, VoiceServerUpdate
 
 import ari
 from ari import events
@@ -35,7 +34,7 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
     _manager: ari.PlayerManagerABC
     _redis: aioredis.Redis
     _player_key: str
-    _andesite_ws: andesite.AndesiteWebSocketInterface
+    _andesite_ws: andesite.WebSocketInterface
     _guild_id: int
 
     _queue: ari.RedisEntryList
@@ -45,7 +44,7 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
 
     def __init__(self, m: ari.PlayerManagerABC,
                  redis: aioredis.Redis, player_key: str,
-                 andesite_ws: andesite.AndesiteWebSocketInterface,
+                 andesite_ws: andesite.WebSocketInterface,
                  guild_id: int, *, loop: asyncio.AbstractEventLoop = None) -> None:
         self.loop = loop
 
@@ -192,7 +191,7 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
         await self._update()
         # TODO event
 
-    async def _get_player(self) -> Player:
+    async def _get_player(self) -> andesite.Player:
         """Get the player for sure.
 
         If no player currently exists, get it from Andesite directly.
@@ -204,28 +203,28 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
 
         return player
 
-    async def get_player(self) -> Optional[Player]:
+    async def get_player(self) -> Optional[andesite.Player]:
         return await get_optional_transform(
             self._redis,
             f"{self._player_key}:andesite:player",
             andesite.player_from_raw,
         )
 
-    async def set_player(self, player: Optional[Player]) -> None:
+    async def set_player(self, player: Optional[andesite.Player]) -> None:
         await set_optional_transform(
             self._redis, player,
             f"{self._player_key}:andesite:player",
             andesite.player_to_raw
         )
 
-    async def get_voice_server_update(self) -> Optional[VoiceServerUpdate]:
+    async def get_voice_server_update(self) -> Optional[andesite.VoiceServerUpdate]:
         return await get_optional_transform(
             self._redis,
             f"{self._player_key}:andesite:voice",
             andesite.voice_server_update_from_raw
         )
 
-    async def set_voice_server_update(self, update: Optional[VoiceServerUpdate]) -> None:
+    async def set_voice_server_update(self, update: Optional[andesite.VoiceServerUpdate]) -> None:
         await set_optional_transform(
             self._redis, update,
             f"{self._player_key}:andesite:voice",
