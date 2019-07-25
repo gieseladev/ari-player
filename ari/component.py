@@ -20,7 +20,7 @@ __all__ = ["AriServer", "create_ari_server", "create_component"]
 log = logging.getLogger(__name__)
 
 
-class AriServer(ari.PlayerManagerABC, andesite.AbstractState, aiobservable.ChildEmitterABC):
+class AriServer(ari.PlayerManagerABC, aiobservable.ChildEmitterABC):
     __slots__ = ("loop", "config",
                  "_redis", "_manager_key", "_andesite_ws",
                  "_players",
@@ -50,7 +50,7 @@ class AriServer(ari.PlayerManagerABC, andesite.AbstractState, aiobservable.Child
         self._redis = redis
         self._manager_key = manager_key
         self._andesite_ws = andesite_ws
-        andesite_ws.state = self
+        andesite_ws.event_target.on(andesite.TrackEndEvent, self.on_andesite_track_end)
 
         self._players = weakref.WeakValueDictionary()
 
@@ -75,32 +75,27 @@ class AriServer(ari.PlayerManagerABC, andesite.AbstractState, aiobservable.Child
             kwargs = event.get_kwargs()
             kwargs["options"] = PublishOptions(acknowledge=True)
 
+            log.debug("publishing event: %s", event)
             return self._session.publish(event.uri, *event.get_args(), **kwargs)
 
         fut = self.loop.create_future()
         fut.set_result(None)
         return fut
 
+    async def on_andesite_track_end(self, event: andesite.TrackEndEvent) -> None:
+        player = self.get_player(event.guild_id)
+        await player.on_track_end(event)
+
     async def get_track_info(self, eid: str) -> ari.ElakshiTrack:
         await self._session.call("io.giesela.elakshi.get", eid)
         raise NotImplementedError
-
-    async def handle_player_update(self, update: andesite.PlayerUpdate) -> None:
-        raise NotImplementedError
-
-    async def handle_andesite_event(self, event: andesite.AndesiteEvent) -> None:
-        raise NotImplementedError
-
-    async def handle_voice_server_update(self, guild_id: int, update: andesite.VoiceServerUpdate) -> None:
-        raise NotImplementedError
-
-    async def get(self, guild_id: int) -> andesite.AbstractPlayerState:
-        return self.get_player(guild_id)
 
     @subscribe("com.discord.on_voice_state_update")
     async def on_voice_state_update(self, update: Any) -> None:
         if int(update["user_id"]) != self.config.andesite.user_id:
             return
+
+        log.debug("received voice state update: %s", update)
 
         self._voice_session_id = update["session_id"]
 
@@ -120,6 +115,7 @@ class AriServer(ari.PlayerManagerABC, andesite.AbstractState, aiobservable.Child
 
     @subscribe("com.discord.on_voice_server_update")
     async def on_voice_server_update(self, update: Any) -> None:
+        log.debug("received voice server update: %s", update)
         if self._voice_session_id is None:
             return
 
@@ -127,10 +123,12 @@ class AriServer(ari.PlayerManagerABC, andesite.AbstractState, aiobservable.Child
 
     @register("connect")
     async def connect(self, guild_id: int, channel_id: int) -> None:
+        log.debug("connecting player in guild %s to %s", guild_id, channel_id)
         await self._session.call("com.discord.update_voice_state", guild_id, channel_id)
 
     @register("disconnect")
     async def disconnect(self, guild_id: int) -> None:
+        log.debug("disconnecting player in guild %s", guild_id)
         await self._session.call("com.discord.update_voice_state", guild_id)
 
     @register("queue")

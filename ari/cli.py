@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import logging
+import logging.config
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -24,13 +25,40 @@ def _install_uvloop() -> None:
 
 
 def _setup_logging() -> None:
-    root = logging.getLogger()
+    logging.config.dictConfig({
+        "version": 1,
 
-    root.setLevel(logging.DEBUG)
-    fmt = logging.Formatter("{levelname} {name}: {message}", style="{")
-    stream_handler = logging.StreamHandler()
-    stream_handler.setFormatter(fmt)
-    root.addHandler(stream_handler)
+        "formatters": {
+            "stream": {
+                "format": "{levelname} {name}: {message}",
+                "style": "{",
+            },
+        },
+
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "formatter": "stream",
+            },
+        },
+
+        "loggers": {
+            "ari": {
+                "level": "DEBUG",
+            },
+            "andesite": {
+                "level": "INFO",
+            },
+            "autobahn": {
+                "level": "DEBUG",
+            },
+        },
+
+        "root": {
+            "level": "INFO",
+            "handlers": ["console"],
+        },
+    })
 
 
 async def run(config: "AriConfig", *, loop: asyncio.AbstractEventLoop) -> None:

@@ -59,6 +59,9 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
 
         self._observable = aiobservable.Observable(loop=loop)
 
+    def __str__(self) -> str:
+        return f"RedisPlayer(guild_id={self.guild_id})"
+
     @property
     def observable(self) -> aiobservable.Observable:
         return self._observable
@@ -84,18 +87,29 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
         return await self._redis.get(f"{self._player_key}:connected") == b"1"
 
     async def on_connect(self, channel_id: int) -> None:
+        log.debug("%s connected to %s", self, channel_id)
         await self._redis.set(f"{self._player_key}:connected", b"1")
-        await self._update()
+        await self._update(resume=True)
 
     async def on_disconnect(self) -> None:
-        await self._redis.set(f"{self._player_key}:connected", b"0")
+        log.debug("%s disconnected", self)
+
+        await self._redis.delete(f"{self._player_key}:connected")
         await self.pause(True)
+
+    async def on_track_end(self, event: andesite.TrackEndEvent) -> None:
+        log.debug("%s track ended", event)
+
+        if event.may_start_next:
+            await self.next()
 
     async def get_volume(self) -> float:
         player = await self._get_player()
         return player.volume
 
     async def set_volume(self, value: float) -> None:
+        log.debug("%s setting volume to %s", self, value)
+
         old_volume = await self.get_volume()
         await self._andesite_ws.volume(self.guild_id, value)
 
@@ -110,6 +124,7 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
         return maybe_decode_entry(await self._redis.get(f"{self._player_key}:current", encoding="utf-8"))
 
     async def pause(self, pause: bool) -> None:
+        log.debug("%s (un)pausing pause=%s", self, pause)
         await self._andesite_ws.pause(self.guild_id, pause)
         # TODO event
 
@@ -118,20 +133,28 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
         return player.paused
 
     async def stop(self) -> None:
+        log.debug("%s stopping", self)
         # TODO what does "stop" mean?
         await self._andesite_ws.stop(self.guild_id)
         # TODO event
 
     async def seek(self, position: float) -> None:
+        log.debug("%s seeking to %s", self, position)
         await self._andesite_ws.seek(self.guild_id, position)
         # TODO event
 
-    async def _update(self) -> None:
-        # TODO this isn't a good check
-        connected, paused, current_entry = await asyncio.gather(self.connected(),
-                                                                self.paused(),
-                                                                self.get_current(), loop=self.loop)
-        if connected and not current_entry and not paused:
+    async def _update(self, *, resume: bool = False) -> None:
+        log.debug("%s updating self (resume=%s)", self, resume)
+        connected, paused, current_entry = await asyncio.gather(
+            self.connected(),
+            self.paused(),
+            self.get_current(),
+            loop=self.loop,
+        )
+
+        if resume and connected and paused:
+            await self.pause(False)
+        elif connected and not current_entry and not paused:
             await self.next()
 
     async def _play(self, entry: Optional[ari.Entry]) -> None:
@@ -143,6 +166,7 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
         await self._andesite_ws.play(self.guild_id, track)
 
     async def next(self) -> None:
+        log.debug("%s playing next", self)
         entry = await self._queue.pop_start()
         await self._play(entry)
         # TODO event
@@ -155,6 +179,7 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
             return await self._manager.get_track_info(entry.eid)
 
     async def next_chapter(self) -> None:
+        log.debug("%s seeking to next chapter", self)
         info = await self._get_current_track_info()
         if info is None:
             await self.next()
@@ -166,6 +191,7 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
         # TODO event
 
     async def previous(self) -> None:
+        log.debug("%s playing previous entry", self)
         entry = await self._history.pop_start()
 
         current = await self.get_current()
@@ -176,6 +202,7 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
         # TODO event
 
     async def previous_chapter(self) -> None:
+        log.debug("%s seeking to previous chapter", self)
         info = await self._get_current_track_info()
         if info is None:
             await self.previous()
@@ -187,6 +214,7 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
         # TODO event
 
     async def enqueue(self, entry: ari.Entry) -> None:
+        log.debug("%s adding entry to the queue: %s", self, entry)
         await self._queue.add_end(entry)
         await self._update()
         # TODO event

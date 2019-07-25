@@ -37,7 +37,7 @@ class Play(AriEvent, uri="on_play"):
     progress: float
 
     def get_args(self) -> Tuple[Any, ...]:
-        return self.entry.as_dict(),
+        return self.guild_id, self.entry.as_dict(),
 
     def get_kwargs(self) -> Dict[str, Any]:
         return {
@@ -57,4 +57,4 @@ class QueueAdd(AriEvent, uri="on_queue_add"):
     entry: ari.Entry
 
     def get_args(self) -> Tuple[Any, ...]:
-        return self.entry.as_dict(),
+        return self.guild_id, self.entry.as_dict(),

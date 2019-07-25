@@ -8,5 +8,5 @@ takes ages to build.
 
 ## Required Components
 
-- [Wampus](https://github.com/gieseladev/wampus) `io.giesela.wampus`
+- [Wampus](https://github.com/gieseladev/wampus) `com.discord`
 - [Elakshi](https://github.com/gieseladev/elakshi) `io.giesela.elakshi`
