@@ -4,6 +4,8 @@ import logging
 import logging.config
 from typing import TYPE_CHECKING
 
+import txaio
+
 if TYPE_CHECKING:
     from ari import Config as AriConfig
 
@@ -18,10 +20,6 @@ def _install_uvloop() -> None:
     else:
         log.info("Using uvloop")
         uvloop.install()
-
-        # gotta update txaio too!
-        import txaio
-        txaio.config.loop = asyncio.get_event_loop()
 
 
 def _setup_logging() -> None:
@@ -61,14 +59,16 @@ def _setup_logging() -> None:
     })
 
 
-async def run(config: "AriConfig", *, loop: asyncio.AbstractEventLoop) -> None:
+async def run(config: "AriConfig") -> None:
+    txaio.config.loop = asyncio.get_event_loop()
+
     import ari
 
-    server = await ari.create_ari_server(config, loop=loop)
+    server = await ari.create_ari_server(config)
     component = ari.create_component(server, config)
 
     log.info("starting component")
-    await component.start(loop=loop)
+    await component.start()
 
 
 def get_parser() -> argparse.ArgumentParser:
@@ -94,8 +94,7 @@ def main() -> None:
 
     c = ari.load_config(args.config)
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(run(c, loop=loop))
+    asyncio.run(run(c))
 
 
 if __name__ == "__main__":

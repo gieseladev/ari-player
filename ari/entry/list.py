@@ -8,6 +8,7 @@ __all__ = ["EntryListABC", "MutEntryListABC", "get_entry_list_page"]
 
 class EntryListABC(abc.ABC):
     """Read-only list over a collection of entries."""
+    __slots__ = ()
 
     @abc.abstractmethod
     async def get_length(self) -> int:
@@ -43,6 +44,7 @@ class EntryListABC(abc.ABC):
 
 class MutEntryListABC(EntryListABC, abc.ABC):
     """Entry list for keeping track of entries."""
+    __slots__ = ()
 
     @abc.abstractmethod
     async def remove(self, entry: Union[Entry, str]) -> bool:

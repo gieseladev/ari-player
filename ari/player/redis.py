@@ -3,12 +3,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import lptrack
-from typing import Any, Callable, Optional, Awaitable
+from typing import Any, Awaitable, Callable, Optional
 
 import aiobservable
 import aioredis
 import andesite
+import lptrack
 
 import ari
 from ari import events
@@ -23,13 +23,12 @@ log = logging.getLogger(__name__)
 class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
     """Player using Redis."""
 
-    __slots__ = ("loop",
-                 "_manager",
+    __slots__ = ("_manager",
                  "_redis", "_player_key",
                  "_andesite_ws", "_guild_id",
-                 "_queue", "_history")
-
-    loop: Optional[asyncio.AbstractEventLoop]
+                 "_queue", "_history",
+                 "_observable",
+                 "__weakref__")
 
     _manager: ari.PlayerManagerABC
     _redis: aioredis.Redis
@@ -45,9 +44,7 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
     def __init__(self, m: ari.PlayerManagerABC,
                  redis: aioredis.Redis, player_key: str,
                  andesite_ws: andesite.WebSocketInterface,
-                 guild_id: int, *, loop: asyncio.AbstractEventLoop = None) -> None:
-        self.loop = loop
-
+                 guild_id: int) -> None:
         self._manager = m
         self._redis = redis
         self._player_key = player_key
@@ -57,7 +54,7 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
         self._queue = ari.RedisEntryList(redis, f"{player_key}:queue")
         self._history = ari.RedisEntryList(redis, f"{player_key}:history")
 
-        self._observable = aiobservable.Observable(loop=loop)
+        self._observable = aiobservable.Observable()
 
     def __str__(self) -> str:
         return f"RedisPlayer(guild_id={self.guild_id})"
@@ -99,6 +96,13 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
 
     async def on_track_end(self, event: andesite.TrackEndEvent) -> None:
         log.debug("%s track ended", event)
+
+        current = await self.get_current()
+        if current is not None:
+            log.debug("%s: adding current entry to history: %s", self, current)
+            await self._history.add_start(current)
+        else:
+            log.warning("%s: no current entry when track ended: %s", self, event)
 
         if event.may_start_next:
             await self.next()
@@ -149,7 +153,6 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
             self.connected(),
             self.paused(),
             self.get_current(),
-            loop=self.loop,
         )
 
         if resume and connected and paused:
@@ -270,7 +273,7 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
             await self._redis.set(key, track)
 
     async def _get_lp_track(self, eid: str) -> str:
-        """Generate the lavaplayer track string for the eid."""
+        """Generate the LavaPlayer track string for the eid."""
 
         # elakshi_track = await self._manager.get_track_info(eid)
         # TODO create lp track from elakshi

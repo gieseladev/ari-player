@@ -10,6 +10,7 @@ __all__ = ["PlayerABC"]
 
 class PlayerABC(abc.ABC):
     """Ari player."""
+    __slots__ = ()
 
     @property
     @abc.abstractmethod

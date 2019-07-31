@@ -6,6 +6,8 @@ import ari
 
 
 class PlayerManagerABC(abc.ABC):
+    __slots__ = ()
+
     @abc.abstractmethod
     def get_player(self, guild_id: int) -> ari.PlayerABC:
         ...

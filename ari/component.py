@@ -1,14 +1,11 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 import weakref
-from typing import Any, Awaitable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-import aiobservable
 import aioredis
 import andesite
-from aiobservable.abstract import T
 from autobahn.asyncio.component import Component
 from autobahn.wamp import ISession, PublishOptions, SessionDetails, register, subscribe
 
@@ -20,14 +17,13 @@ __all__ = ["AriServer", "create_ari_server", "create_component"]
 log = logging.getLogger(__name__)
 
 
-class AriServer(ari.PlayerManagerABC, aiobservable.ChildEmitterABC):
-    __slots__ = ("loop", "config",
+class AriServer(ari.PlayerManagerABC):
+    __slots__ = ("config",
                  "_redis", "_manager_key", "_andesite_ws",
                  "_players",
                  "_session",
                  "_voice_session_id")
 
-    loop: asyncio.AbstractEventLoop
     config: ari.Config
 
     _redis: aioredis.Redis
@@ -41,11 +37,9 @@ class AriServer(ari.PlayerManagerABC, aiobservable.ChildEmitterABC):
     _voice_session_id: Optional[str]
 
     def __init__(self, config: ari.Config, redis: aioredis.Redis, manager_key: str,
-                 andesite_ws: andesite.WebSocketInterface, *,
-                 loop: asyncio.AbstractEventLoop = None) -> None:
+                 andesite_ws: andesite.WebSocketInterface) -> None:
         super().__init__()
         self.config = config
-        self.loop = loop or asyncio.get_event_loop()
 
         self._redis = redis
         self._manager_key = manager_key
@@ -60,7 +54,7 @@ class AriServer(ari.PlayerManagerABC, aiobservable.ChildEmitterABC):
 
     def _create_player(self, guild_id: int) -> ari.RedisPlayer:
         player = ari.RedisPlayer(self, self._redis, f"{self._manager_key}:{guild_id}", self._andesite_ws, guild_id)
-        player.observable.add_child(self)
+        player.observable.on(callback=self.on_player_event)
         return player
 
     def get_player(self, guild_id: int) -> ari.RedisPlayer:
@@ -68,19 +62,16 @@ class AriServer(ari.PlayerManagerABC, aiobservable.ChildEmitterABC):
             return self._players[guild_id]
         except KeyError:
             player = self._players[guild_id] = self._create_player(guild_id)
+            weakref.finalize(player, log.debug, "player of guild %s got garbage collected", guild_id)
             return player
 
-    def emit(self, event: T) -> Awaitable[None]:
+    async def on_player_event(self, event: Any) -> None:
         if isinstance(event, events.AriEvent):
             kwargs = event.get_kwargs()
             kwargs["options"] = PublishOptions(acknowledge=True)
 
             log.debug("publishing event: %s", event)
-            return self._session.publish(event.uri, *event.get_args(), **kwargs)
-
-        fut = self.loop.create_future()
-        fut.set_result(None)
-        return fut
+            await self._session.publish(event.uri, *event.get_args(), **kwargs)
 
     async def on_andesite_track_end(self, event: andesite.TrackEndEvent) -> None:
         player = self.get_player(event.guild_id)
@@ -185,14 +176,13 @@ class AriServer(ari.PlayerManagerABC, aiobservable.ChildEmitterABC):
         await player.seek(position)
 
 
-async def create_ari_server(config: ari.Config, *, loop: asyncio.AbstractEventLoop = None) -> AriServer:
+async def create_ari_server(config: ari.Config) -> AriServer:
     """Create the Ari server."""
-    redis = await aioredis.create_redis_pool(config.redis.address, loop=loop)
+    redis = await aioredis.create_redis_pool(config.redis.address)
     await redis.select(config.redis.database)
     andesite_ws = andesite.create_pool((), config.andesite.get_node_tuples(),
-                                       user_id=config.andesite.user_id,
-                                       loop=loop)
-    server = AriServer(config, redis, config.redis.namespace, andesite_ws, loop=loop)
+                                       user_id=config.andesite.user_id)
+    server = AriServer(config, redis, config.redis.namespace, andesite_ws)
     andesite_ws.state = andesite.State(state_factory=server.get_player)
 
     return server
