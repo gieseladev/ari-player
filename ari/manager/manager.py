@@ -9,7 +9,7 @@ class PlayerManagerABC(abc.ABC):
     __slots__ = ()
 
     @abc.abstractmethod
-    def get_player(self, guild_id: int) -> ari.PlayerABC:
+    def get_player(self, guild_id: ari.SnowflakeType) -> ari.PlayerABC:
         ...
 
     @abc.abstractmethod

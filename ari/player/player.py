@@ -20,7 +20,7 @@ class PlayerABC(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def guild_id(self) -> int:
+    def guild_id(self) -> str:
         """Guild id the player is for."""
         ...
 
@@ -41,11 +41,6 @@ class PlayerABC(abc.ABC):
         This is read-only!
         """
         ...
-
-    # @abc.abstractmethod
-    # async def get_channel_id(self) -> Optional[int]:
-    #     """Get the channel the player is connected to."""
-    #     ...
 
     @abc.abstractmethod
     async def get_current(self) -> Optional[ari.Entry]:
@@ -136,7 +131,7 @@ class PlayerABC(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def on_connect(self, channel_id: int) -> None:
+    async def on_connect(self, channel_id: str) -> None:
         """Called when the player connects"""
         ...
 

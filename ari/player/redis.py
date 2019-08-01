@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any, Awaitable, Callable, Optional, Union
 
 import aiobservable
 import aioredis
@@ -12,20 +12,79 @@ import lptrack
 
 import ari
 from ari import events
-from ari.entry.redis import maybe_decode_entry
+from ari.entry.redis import encode_entry, maybe_decode_entry
 from .player import PlayerABC
 
 __all__ = ["RedisPlayer"]
 
 log = logging.getLogger(__name__)
 
+DEFAULT = object()
 
-class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
+
+class RedisAndesitePlayerState(andesite.AbstractPlayerState):
+    __slots__ = ("__guild_id",
+                 "_redis", "_key")
+
+    __guild_id: int
+
+    _redis: aioredis.Redis
+    _key: str
+
+    def __init__(self, guild_id: int, redis: aioredis.Redis, key: str) -> None:
+        self.__guild_id = guild_id
+        self._redis = redis
+        self._key = key
+
+    @property
+    def guild_id(self) -> int:
+        return self.__guild_id
+
+    async def get_player(self) -> Optional[andesite.Player]:
+        return await get_optional_transform(
+            self._redis,
+            f"{self._key}:player",
+            andesite.player_from_raw,
+        )
+
+    async def set_player(self, player: Optional[andesite.Player]) -> None:
+        await set_optional_transform(
+            self._redis, player,
+            f"{self._key}:player",
+            andesite.player_to_raw,
+        )
+
+    async def get_voice_server_update(self) -> Optional[andesite.VoiceServerUpdate]:
+        return await get_optional_transform(
+            self._redis,
+            f"{self._key}:voice",
+            andesite.voice_server_update_from_raw,
+        )
+
+    async def set_voice_server_update(self, update: Optional[andesite.VoiceServerUpdate]) -> None:
+        await set_optional_transform(
+            self._redis, update,
+            f"{self._key}:voice",
+            andesite.voice_server_update_to_raw,
+        )
+
+    async def get_track(self) -> Optional[str]:
+        return await self._redis.get(f"{self._key}:track", encoding="utf-8")
+
+    async def set_track(self, track: Optional[str]) -> None:
+        key = f"{self._key}:track"
+        if track is None:
+            await self._redis.delete(key)
+        else:
+            await self._redis.set(key, track)
+
+
+class RedisPlayer(PlayerABC):
     """Player using Redis."""
 
     __slots__ = ("_manager",
-                 "_redis", "_player_key",
-                 "_andesite_ws", "_guild_id",
+                 "_redis", "_player_key", "_guild_id",
+                 "_andesite_ws", "_andesite_state",
                  "_queue", "_history",
                  "_observable",
                  "__weakref__")
@@ -33,8 +92,10 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
     _manager: ari.PlayerManagerABC
     _redis: aioredis.Redis
     _player_key: str
-    _andesite_ws: andesite.WebSocketInterface
     _guild_id: int
+
+    _andesite_ws: andesite.WebSocketInterface
+    _andesite_state: RedisAndesitePlayerState
 
     _queue: ari.RedisEntryList
     _history: ari.RedisEntryList
@@ -44,12 +105,14 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
     def __init__(self, m: ari.PlayerManagerABC,
                  redis: aioredis.Redis, player_key: str,
                  andesite_ws: andesite.WebSocketInterface,
-                 guild_id: int) -> None:
+                 guild_id: ari.SnowflakeType) -> None:
         self._manager = m
         self._redis = redis
         self._player_key = player_key
+        self._guild_id = int(guild_id)
+
         self._andesite_ws = andesite_ws
-        self._guild_id = guild_id
+        self._andesite_state = RedisAndesitePlayerState(self._guild_id, redis, f"{player_key}:andesite")
 
         self._queue = ari.RedisEntryList(redis, f"{player_key}:queue")
         self._history = ari.RedisEntryList(redis, f"{player_key}:history")
@@ -57,15 +120,15 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
         self._observable = aiobservable.Observable()
 
     def __str__(self) -> str:
-        return f"RedisPlayer(guild_id={self.guild_id})"
+        return f"RedisPlayer(guild_id={self._guild_id})"
 
     @property
     def observable(self) -> aiobservable.Observable:
         return self._observable
 
     @property
-    def guild_id(self) -> int:
-        return self._guild_id
+    def guild_id(self) -> str:
+        return str(self._guild_id)
 
     @property
     def queue(self) -> ari.EntryListABC:
@@ -75,15 +138,42 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
     def history(self) -> ari.EntryListABC:
         return self._history
 
-    def _emit(self, event: events.AriEvent) -> Awaitable[None]:
+    @property
+    def andesite_state(self) -> andesite.AbstractPlayerState:
+        """Andesite state handler."""
+        return self._andesite_state
+
+    def __emit(self, event: events.AriEvent) -> Awaitable[None]:
         """Emit an event and attach the guild id to it"""
         event.guild_id = self._guild_id
         return self._observable.emit(event)
 
+    async def __emit_play(self, *,
+                          entry: ari.Entry = DEFAULT,
+                          paused: bool = DEFAULT,
+                          position: float = DEFAULT) -> None:
+        data = {}
+
+        async def setter(key: str, value: Union[Any, DEFAULT], corof: Callable[[], Awaitable[Any]]) -> None:
+            nonlocal data
+
+            if value is DEFAULT:
+                value = await corof()
+
+            data[key] = value
+
+        await asyncio.gather(
+            setter("entry", entry, self.get_current),
+            setter("paused", paused, self.paused),
+            setter("position", position, self.get_position),
+        )
+
+        await self.__emit(events.Play(**data))
+
     async def connected(self) -> bool:
         return await self._redis.get(f"{self._player_key}:connected") == b"1"
 
-    async def on_connect(self, channel_id: int) -> None:
+    async def on_connect(self, channel_id: str) -> None:
         log.debug("%s connected to %s", self, channel_id)
         await self._redis.set(f"{self._player_key}:connected", b"1")
         await self._update(resume=True)
@@ -101,6 +191,7 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
         if current is not None:
             log.debug("%s: adding current entry to history: %s", self, current)
             await self._history.add_start(current)
+            await self.__emit(events.HistoryAdd(current))
         else:
             log.warning("%s: no current entry when track ended: %s", self, event)
 
@@ -109,18 +200,22 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
 
     async def get_volume(self) -> float:
         player = await self._get_player()
+        if player is None:
+            return 1
+
         return player.volume
 
     async def set_volume(self, value: float) -> None:
         log.debug("%s setting volume to %s", self, value)
 
         old_volume = await self.get_volume()
-        await self._andesite_ws.volume(self.guild_id, value)
-
-        _ = self._emit(events.VolumeChange(old_volume, value))
+        await self._andesite_ws.volume(self._guild_id, value)
+        await self.__emit(events.VolumeChange(old_volume, value))
 
     async def get_position(self) -> Optional[float]:
         player = await self._get_player()
+        if player is None:
+            return None
 
         return player.live_position
 
@@ -129,23 +224,28 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
 
     async def pause(self, pause: bool) -> None:
         log.debug("%s (un)pausing pause=%s", self, pause)
-        await self._andesite_ws.pause(self.guild_id, pause)
-        # TODO event
+        await self._andesite_ws.pause(self._guild_id, pause)
+
+        await self.__emit_play(paused=pause)
 
     async def paused(self) -> bool:
         player = await self._get_player()
+        if player is None:
+            return False
+
         return player.paused
 
     async def stop(self) -> None:
         log.debug("%s stopping", self)
         # TODO what does "stop" mean?
-        await self._andesite_ws.stop(self.guild_id)
+        await self._andesite_ws.stop(self._guild_id)
         # TODO event
 
     async def seek(self, position: float) -> None:
         log.debug("%s seeking to %s", self, position)
-        await self._andesite_ws.seek(self.guild_id, position)
-        # TODO event
+        await self._andesite_ws.seek(self._guild_id, position)
+
+        await self.__emit_play(position=position)
 
     async def _update(self, *, resume: bool = False) -> None:
         log.debug("%s updating self (resume=%s)", self, resume)
@@ -159,20 +259,25 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
             await self.pause(False)
         elif connected and not current_entry and not paused:
             await self.next()
+        else:
+            log.debug("%s no need to update", self)
 
     async def _play(self, entry: Optional[ari.Entry]) -> None:
         if entry is None:
             await self.stop()
-            return
+            await self._redis.delete(f"{self._player_key}:current")
+        else:
+            track = await self._get_lp_track(entry.eid)
+            await self._andesite_ws.play(self._guild_id, track)
+            await self._redis.set(f"{self._player_key}:current", encode_entry(entry))
 
-        track = await self._get_lp_track(entry.eid)
-        await self._andesite_ws.play(self.guild_id, track)
+        await self.__emit_play(entry=entry)
 
     async def next(self) -> None:
         log.debug("%s playing next", self)
         entry = await self._queue.pop_start()
+        # TODO queue pop event
         await self._play(entry)
-        # TODO event
 
     async def _get_current_track_info(self) -> Optional[ari.ElakshiTrack]:
         entry = await self.get_current()
@@ -191,18 +296,20 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
 
         # TODO
         raise NotImplementedError
-        # TODO event
+        # TODO event for chapter skip
 
     async def previous(self) -> None:
         log.debug("%s playing previous entry", self)
         entry = await self._history.pop_start()
+        # TODO event for history
 
         current = await self.get_current()
         if current is not None:
             await self._queue.add_start(current)
+            # TODO queue event position?
+            await self.__emit(events.QueueAdd(current))
 
         await self._play(entry)
-        # TODO event
 
     async def previous_chapter(self) -> None:
         log.debug("%s seeking to previous chapter", self)
@@ -214,63 +321,27 @@ class RedisPlayer(PlayerABC, andesite.AbstractPlayerState):
 
         # TODO
         raise NotImplementedError
-        # TODO event
+        # TODO event for chapter skip
 
     async def enqueue(self, entry: ari.Entry) -> None:
         log.debug("%s adding entry to the queue: %s", self, entry)
         await self._queue.add_end(entry)
-        await self._update()
-        # TODO event
+        await self.__emit(events.QueueAdd(entry))
 
-    async def _get_player(self) -> andesite.Player:
+        await self._update()
+
+    async def _get_player(self) -> Optional[andesite.Player]:
         """Get the player for sure.
 
         If no player currently exists, get it from Andesite directly.
+        If Andesite doesn't return a player, `None` is returned.
         """
-        player = await self.get_player()
+        player = await self._andesite_state.get_player()
         if player is None:
-            log.info("guild %s doesn't have a player, getting from Andesite", self.guild_id)
-            player = await self._andesite_ws.get_player(self.guild_id)
+            log.info("guild %s doesn't have a player state stored, asking Andesite", self._guild_id)
+            player = await self._andesite_ws.get_player(self._guild_id)
 
         return player
-
-    async def get_player(self) -> Optional[andesite.Player]:
-        return await get_optional_transform(
-            self._redis,
-            f"{self._player_key}:andesite:player",
-            andesite.player_from_raw,
-        )
-
-    async def set_player(self, player: Optional[andesite.Player]) -> None:
-        await set_optional_transform(
-            self._redis, player,
-            f"{self._player_key}:andesite:player",
-            andesite.player_to_raw
-        )
-
-    async def get_voice_server_update(self) -> Optional[andesite.VoiceServerUpdate]:
-        return await get_optional_transform(
-            self._redis,
-            f"{self._player_key}:andesite:voice",
-            andesite.voice_server_update_from_raw
-        )
-
-    async def set_voice_server_update(self, update: Optional[andesite.VoiceServerUpdate]) -> None:
-        await set_optional_transform(
-            self._redis, update,
-            f"{self._player_key}:andesite:voice",
-            andesite.voice_server_update_to_raw
-        )
-
-    async def get_track(self) -> Optional[str]:
-        return await self._redis.get(f"{self._player_key}:andesite:track", encoding="utf-8")
-
-    async def set_track(self, track: Optional[str]) -> None:
-        key = f"{self._player_key}:andesite:track"
-        if track is None:
-            await self._redis.delete(key)
-        else:
-            await self._redis.set(key, track)
 
     async def _get_lp_track(self, eid: str) -> str:
         """Generate the LavaPlayer track string for the eid."""

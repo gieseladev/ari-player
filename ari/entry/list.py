@@ -6,6 +6,8 @@ from .entry import Entry
 __all__ = ["EntryListABC", "MutEntryListABC", "get_entry_list_page"]
 
 
+# TODO enable capped list
+
 class EntryListABC(abc.ABC):
     """Read-only list over a collection of entries."""
     __slots__ = ()

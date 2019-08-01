@@ -45,7 +45,7 @@ def _setup_logging() -> None:
                 "level": "DEBUG",
             },
             "andesite": {
-                "level": "INFO",
+                "level": "DEBUG",
             },
             "autobahn": {
                 "level": "DEBUG",

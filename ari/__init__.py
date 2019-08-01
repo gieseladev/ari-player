@@ -8,6 +8,8 @@ from .entry import *
 from .manager import *
 from .player import *
 from .track import *
+from .types import *
+
 # must come last
 from .component import *
 

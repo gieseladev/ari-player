@@ -32,17 +32,18 @@ class AriEvent(metaclass=AriEventMeta, uri=None):
 
 @dataclasses.dataclass()
 class Play(AriEvent, uri="on_play"):
-    entry: ari.Entry
+    entry: Optional[ari.Entry]
     paused: bool
-    progress: float
+    position: Optional[float]
 
     def get_args(self) -> Tuple[Any, ...]:
-        return self.guild_id, self.entry.as_dict(),
+        entry = self.entry.as_dict() if self.entry else None
+        return self.guild_id, entry,
 
     def get_kwargs(self) -> Dict[str, Any]:
         return {
             "paused": self.paused,
-            "progress": self.progress,
+            "position": self.position,
         }
 
 
@@ -54,6 +55,14 @@ class VolumeChange(AriEvent, uri="on_volume_change"):
 
 @dataclasses.dataclass()
 class QueueAdd(AriEvent, uri="on_queue_add"):
+    entry: ari.Entry
+
+    def get_args(self) -> Tuple[Any, ...]:
+        return self.guild_id, self.entry.as_dict(),
+
+
+@dataclasses.dataclass()
+class HistoryAdd(AriEvent, uri="on_history_add"):
     entry: ari.Entry
 
     def get_args(self) -> Tuple[Any, ...]:

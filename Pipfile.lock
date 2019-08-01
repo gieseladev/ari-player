@@ -60,10 +60,10 @@
         },
         "andesite-py": {
             "hashes": [
-                "sha256:30f796c52ac6183e3ed50ac80c4231ce4f8241a832ebcea622b914ae9c488cf7"
+                "sha256:9355c1d6954ba5efde210da815bbe83a6fcb671f908fd790ddc296e1a77be5c3"
             ],
             "index": "pypi",
-            "version": "==0.2.2"
+            "version": "==0.2.3"
         },
         "asn1crypto": {
             "hashes": [
@@ -88,11 +88,11 @@
         },
         "autobahn": {
             "hashes": [
-                "sha256:03ef2bad9d596ac04451d1627c18e434dc70f427109fd23911672ad5fe042f6d",
-                "sha256:60c2f283137b3aafc06f274949387eebcc78c8faad580a8755f6dc83c74bf0e2"
+                "sha256:294e7381dd54e73834354832604ae85567caf391c39363fed0ea2bfa86aa4304",
+                "sha256:312d0c7b9d970219002a966ec36d559245bf9c6987a787c8c41f17eb53dd36da"
             ],
             "index": "pypi",
-            "version": "==19.7.2"
+            "version": "==19.8.1"
         },
         "cbor": {
             "hashes": [
