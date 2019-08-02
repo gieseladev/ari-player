@@ -9,7 +9,7 @@ __all__ = ["EntryListABC", "MutEntryListABC", "get_entry_list_page"]
 # TODO enable capped list
 
 class EntryListABC(abc.ABC):
-    """Read-only list over a collection of entries."""
+    """Read-only sequence of entries."""
     __slots__ = ()
 
     @abc.abstractmethod
@@ -17,7 +17,7 @@ class EntryListABC(abc.ABC):
         """Get the length of the entry list.
 
         Returns:
-            Length of the entry list.
+            Amount of entries currently in the list.
         """
         ...
 
@@ -25,19 +25,25 @@ class EntryListABC(abc.ABC):
     async def get(self, index: int) -> Optional[Entry]: ...
 
     @overload
+    async def get(self, index: str) -> Optional[Entry]: ...
+
+    @overload
     async def get(self, index: slice) -> List[Entry]: ...
 
     @abc.abstractmethod
-    async def get(self, index: Union[int, slice]) -> Union[Optional[Entry], List[Entry]]:
+    async def get(self, index: Union[int, str, slice]) -> Union[Optional[Entry], List[Entry]]:
         """Get the entry at the given index.
 
         Args:
-            index: Index of the entry to get, or a slice object
-                to get a range of entries.
+            index: One of the following:
+
+                - Index of the entry
+                - AID of the entry
+                - Slice object to get a range of entries.
 
         Returns:
-            If given an index, it returns an `Entry` at the given index or
-            `None` if no entry exists at the given index.
+            If given an index, it returns the entry at the given index or
+            `None` if the index is out of bounds.
 
             In the case of a slice the return value is a list of `Entry`.
         """
@@ -45,7 +51,7 @@ class EntryListABC(abc.ABC):
 
 
 class MutEntryListABC(EntryListABC, abc.ABC):
-    """Entry list for keeping track of entries."""
+    """Mutable sequence of entries."""
     __slots__ = ()
 
     @abc.abstractmethod
@@ -113,7 +119,16 @@ class MutEntryListABC(EntryListABC, abc.ABC):
 
 
 async def get_entry_list_page(l: EntryListABC, page: int, entries_per_page: int) -> List[Entry]:
-    """Get a page of entries."""
+    """Get a page of entries.
+
+    Args:
+        l: Entry list to get the page from
+        page: Page index to get.
+        entries_per_page: The amount of entries per page
+
+    Returns:
+        A list of entries which are on the given page.
+    """
     start = page * entries_per_page
     end = start + entries_per_page
     return await l.get(slice(start, end))

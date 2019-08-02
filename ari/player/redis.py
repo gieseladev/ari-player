@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
+import marshal
 from typing import Any, Awaitable, Callable, Optional, Union
 
 import aiobservable
@@ -12,7 +12,6 @@ import lptrack
 
 import ari
 from ari import events
-from ari.entry.redis import encode_entry, maybe_decode_entry
 from .player import PlayerABC
 
 __all__ = ["RedisPlayer"]
@@ -210,6 +209,7 @@ class RedisPlayer(PlayerABC):
 
         old_volume = await self.get_volume()
         await self._andesite_ws.volume(self._guild_id, value)
+
         await self.__emit(events.VolumeChange(old_volume, value))
 
     async def get_position(self) -> Optional[float]:
@@ -220,7 +220,11 @@ class RedisPlayer(PlayerABC):
         return player.live_position
 
     async def get_current(self) -> Optional[ari.Entry]:
-        return maybe_decode_entry(await self._redis.get(f"{self._player_key}:current", encoding="utf-8"))
+        raw = await self._redis.get(f"{self._player_key}:current")
+        if raw:
+            return ari.Entry.from_dict(marshal.loads(raw))
+        else:
+            return None
 
     async def pause(self, pause: bool) -> None:
         log.debug("%s (un)pausing pause=%s", self, pause)
@@ -237,9 +241,12 @@ class RedisPlayer(PlayerABC):
 
     async def stop(self) -> None:
         log.debug("%s stopping", self)
-        # TODO what does "stop" mean?
-        await self._andesite_ws.stop(self._guild_id)
-        # TODO event
+        await asyncio.gather(
+            self._andesite_ws.stop(self._guild_id),
+            self._queue.clear(),
+        )
+
+        await self.__emit(events.Stop())
 
     async def seek(self, position: float) -> None:
         log.debug("%s seeking to %s", self, position)
@@ -264,19 +271,21 @@ class RedisPlayer(PlayerABC):
 
     async def _play(self, entry: Optional[ari.Entry]) -> None:
         if entry is None:
-            await self.stop()
+            await self._andesite_ws.stop(self._guild_id)
             await self._redis.delete(f"{self._player_key}:current")
         else:
             track = await self._get_lp_track(entry.eid)
             await self._andesite_ws.play(self._guild_id, track)
-            await self._redis.set(f"{self._player_key}:current", encode_entry(entry))
+
+            raw_enty = marshal.dumps(entry.as_dict())
+            await self._redis.set(f"{self._player_key}:current", raw_enty)
 
         await self.__emit_play(entry=entry)
 
     async def next(self) -> None:
         log.debug("%s playing next", self)
         entry = await self._queue.pop_start()
-        # TODO queue pop event
+        await self.__emit(events.QueueRemove(entry))
         await self._play(entry)
 
     async def _get_current_track_info(self) -> Optional[ari.ElakshiTrack]:
@@ -301,7 +310,7 @@ class RedisPlayer(PlayerABC):
     async def previous(self) -> None:
         log.debug("%s playing previous entry", self)
         entry = await self._history.pop_start()
-        # TODO event for history
+        await self.__emit(events.HistoryRemove(entry))
 
         current = await self.get_current()
         if current is not None:
@@ -374,7 +383,7 @@ async def get_optional_transform(redis: aioredis.Redis, key: str, transformer: O
         return None
 
     try:
-        raw_data = json.loads(ser_data)
+        raw_data = marshal.loads(ser_data)
 
         if transformer:
             return transformer(raw_data)
@@ -402,7 +411,7 @@ async def set_optional_transform(redis: aioredis.Redis, data: Optional[Any],
         else:
             raw_data = data
 
-        ser_data = json.dumps(raw_data)
+        ser_data = marshal.dumps(raw_data)
     except Exception:
         log.exception("couldn't encode %s", data)
         return

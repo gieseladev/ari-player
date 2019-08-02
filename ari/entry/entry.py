@@ -4,6 +4,9 @@ from typing import Dict
 __all__ = ["Entry", "new_aid"]
 
 
+# TODO add metadata
+
+
 class Entry:
     """Entry.
 
@@ -29,6 +32,10 @@ class Entry:
 
     def __hash__(self) -> int:
         return hash(self.aid)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, str]):
+        return Entry(data["aid"], data["eid"])
 
     def as_dict(self) -> Dict[str, str]:
         return {"aid": self.aid, "eid": self.eid}

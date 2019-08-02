@@ -48,13 +48,18 @@ class Play(AriEvent, uri="on_play"):
 
 
 @dataclasses.dataclass()
+class Stop(AriEvent, uri="on_stop"):
+    ...
+
+
+@dataclasses.dataclass()
 class VolumeChange(AriEvent, uri="on_volume_change"):
     old: float
     new: float
 
 
 @dataclasses.dataclass()
-class QueueAdd(AriEvent, uri="on_queue_add"):
+class _EntryBase(AriEvent, uri=None):
     entry: ari.Entry
 
     def get_args(self) -> Tuple[Any, ...]:
@@ -62,8 +67,20 @@ class QueueAdd(AriEvent, uri="on_queue_add"):
 
 
 @dataclasses.dataclass()
-class HistoryAdd(AriEvent, uri="on_history_add"):
-    entry: ari.Entry
+class QueueAdd(_EntryBase, uri="on_queue_add"):
+    ...
 
-    def get_args(self) -> Tuple[Any, ...]:
-        return self.guild_id, self.entry.as_dict(),
+
+@dataclasses.dataclass()
+class QueueRemove(_EntryBase, uri="on_queue_remove"):
+    ...
+
+
+@dataclasses.dataclass()
+class HistoryAdd(_EntryBase, uri="on_history_add"):
+    ...
+
+
+@dataclasses.dataclass()
+class HistoryRemove(_EntryBase, uri="on_history_remove"):
+    ...
