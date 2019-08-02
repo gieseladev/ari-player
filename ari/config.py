@@ -36,6 +36,12 @@ class Andesite:
 
 
 @konfi.template()
+class Sentry:
+    """Sentry configuration."""
+    dsn: Optional[str]
+
+
+@konfi.template()
 class Config:
     """Ari configuration"""
     redis: Redis
@@ -43,6 +49,8 @@ class Config:
 
     realm: str
     transports: Union[List[dict], str]
+
+    sentry: Sentry
 
 
 def load_config(config_file: str) -> Config:

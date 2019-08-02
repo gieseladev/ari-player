@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import logging
+import sentry_sdk
 import logging.config
 from typing import TYPE_CHECKING
 
@@ -64,6 +65,8 @@ async def run(config: "AriConfig") -> None:
     txaio.config.loop = asyncio.get_event_loop()
 
     import ari
+
+    sentry_sdk.init(config.sentry.dsn, release=f"ari@{ari.__version__}")
 
     server = await ari.create_ari_server(config)
     component = ari.create_component(server, config)

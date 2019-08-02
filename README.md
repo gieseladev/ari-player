@@ -38,20 +38,23 @@ environment variable takes precedence).
 The following is a representation of the config:
 
 ```yaml
-realm: sample realm name
+realm:    sample realm name
 transports:
-  - url: "rs://localhost:8000"
+  - url:  "rs://localhost:8000"
     type: rawsocket
 
 redis:
-    address: "redis://localhost:6379"
-    namespace: ari
+    address:    "redis://localhost:6379"  
+    namespace:  ari  #------------------  optional
   
 andesite:
-  user_id: 123456789
+  user_id:      123456789
   nodes:
-    - url: "ws://localhost:5000/websocket"
-      password: very much secure 
+    - url:      "ws://localhost:5000/websocket"
+      password: very much secure  #------------ optional
+
+sentry:  # optional
+  dsn:  "https://very-long-and-optional-dsn@sentry.io"
 ```
 
 To configure a value, say, redis.address, use the environment variable
