@@ -191,37 +191,41 @@ class AriServer(ari.PlayerManagerABC):
 
         return entry.aid
 
+    @register("dequeue")
+    async def dequeue(self, guild_id: ari.SnowflakeType, aid: str) -> bool:
+        return await self.get_player(guild_id).dequeue(aid)
+
     @register("move")
     async def move(self, guild_id: ari.SnowflakeType, aid: str, index: int) -> bool:
-        player = self.get_player(guild_id)
-        # TODO
-        raise NotImplementedError
-
-    @register("remove")
-    async def remove(self, guild_id: ari.SnowflakeType, aid: str) -> bool:
-        player = self.get_player(guild_id)
-        # TODO
-        raise NotImplementedError
+        return await self.get_player(guild_id).move(aid, index)
 
     @register("pause")
     async def pause(self, guild_id: ari.SnowflakeType, pause: bool) -> None:
-        player = self.get_player(guild_id)
-        await player.pause(pause)
-
-    @register("get_volume")
-    async def get_volume(self, guild_id: ari.SnowflakeType) -> float:
-        player = self.get_player(guild_id)
-        return await player.get_volume()
+        await self.get_player(guild_id).pause(pause)
 
     @register("set_volume")
     async def set_volume(self, guild_id: ari.SnowflakeType, volume: float) -> None:
-        player = self.get_player(guild_id)
-        await player.set_volume(volume)
+        await self.get_player(guild_id).set_volume(volume)
 
     @register("seek")
     async def seek(self, guild_id: ari.SnowflakeType, position: float) -> None:
-        player = self.get_player(guild_id)
-        await player.seek(position)
+        await self.get_player(guild_id).seek(position)
+
+    @register("skip_next")
+    async def skip_next(self, guild_id: ari.SnowflakeType) -> None:
+        await self.get_player(guild_id).next()
+
+    @register("skip_next_chapter")
+    async def skip_next_chapter(self, guild_id: ari.SnowflakeType) -> None:
+        await self.get_player(guild_id).next_chapter()
+
+    @register("skip_previous")
+    async def skip_previous(self, guild_id: ari.SnowflakeType) -> None:
+        await self.get_player(guild_id).previous()
+
+    @register("skip_previous_chapter")
+    async def skip_previous_chapter(self, guild_id: ari.SnowflakeType) -> None:
+        await self.get_player(guild_id).previous_chapter()
 
 
 async def create_ari_server(config: ari.Config) -> AriServer:

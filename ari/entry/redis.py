@@ -108,7 +108,7 @@ class RedisEntryList(MutEntryListABC):
             if start > stop and step < 0:
                 start, stop = stop, start
 
-            aids, raw_infos = await GET_ENTRIES.eval(
+            aids, raw_infos = await GET_ENTRIES(
                 self._redis,
                 (self._order_list_key, self._entry_hash_key),
                 # Python ranges are [start, stop), but Redis uses [start, stop]
@@ -154,9 +154,9 @@ class RedisEntryList(MutEntryListABC):
         else:
             aid = entry
 
-        res = await MOVE_ENTRY.eval(self._redis,
-                                    (self._order_list_key,),
-                                    (aid, to_index))
+        res = await MOVE_ENTRY(self._redis,
+                               (self._order_list_key,),
+                               (aid, to_index))
         return bool(res)
 
     async def add_start(self, entry: Entry) -> None:
@@ -179,25 +179,25 @@ class RedisEntryList(MutEntryListABC):
         await self._redis.delete(self._order_list_key, self._entry_hash_key)
 
     async def shuffle(self) -> None:
-        await SHUFFLE_ENTRIES.eval(self._redis,
-                                   (self._order_list_key,),
-                                   (random.getrandbits(16),))
+        await SHUFFLE_ENTRIES(self._redis,
+                              (self._order_list_key,),
+                              (random.getrandbits(16),))
 
     async def pop_start(self) -> Optional[Entry]:
-        raw_entry = await POP_ENTRY.eval(self._redis,
-                                         (self._order_list_key, self._entry_hash_key),
-                                         (b"LPOP",),
-                                         encoding=None)
+        raw_entry = await POP_ENTRY(self._redis,
+                                    (self._order_list_key, self._entry_hash_key),
+                                    (b"LPOP",),
+                                    encoding=None)
         if raw_entry:
             return create_entry(raw_entry[0].decode(), raw_entry[1])
         else:
             return None
 
     async def pop_end(self) -> Optional[Entry]:
-        raw_entry = await POP_ENTRY.eval(self._redis,
-                                         (self._order_list_key, self._entry_hash_key),
-                                         (b"RPOP",),
-                                         encoding=None)
+        raw_entry = await POP_ENTRY(self._redis,
+                                    (self._order_list_key, self._entry_hash_key),
+                                    (b"RPOP",),
+                                    encoding=None)
         if raw_entry:
             return create_entry(raw_entry[0].decode(), raw_entry[1])
         else:

@@ -1,5 +1,5 @@
 import abc
-from typing import Optional
+from typing import Optional, Union
 
 import aiobservable
 
@@ -129,6 +129,33 @@ class PlayerABC(abc.ABC):
             entry: Entry to add to the queue.
         """
         ...
+
+    @abc.abstractmethod
+    async def dequeue(self, entry: Union[ari.Entry, str]) -> bool:
+        """Remove an entry from the queue.
+
+        Args:
+            entry: Entry or aid of entry to remove.
+
+        Returns:
+            Whether or not the entry was dequeued.
+        """
+        ...
+
+    @abc.abstractmethod
+    async def move(self, entry: Union[ari.Entry, str], index: int) -> bool:
+        """Move an entry in the queue.
+
+        Args:
+            entry: Entry or aid of entry to move.
+                The entry must already be in the queue, otherwise it can't be
+                moved.
+            index: Position to move the entry to.
+
+        Returns:
+            Whether or not the entry was successfully moved to the new
+            position.
+        """
 
     @abc.abstractmethod
     async def on_connect(self, channel_id: str) -> None:

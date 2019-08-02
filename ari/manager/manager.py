@@ -6,12 +6,29 @@ import ari
 
 
 class PlayerManagerABC(abc.ABC):
+    """Manages multiple players."""
     __slots__ = ()
 
     @abc.abstractmethod
     def get_player(self, guild_id: ari.SnowflakeType) -> ari.PlayerABC:
+        """Get the player for a guild.
+
+        Args:
+            guild_id: ID of the guild to get the player for.
+
+        Returns:
+            Player for the guild.
+        """
         ...
 
     @abc.abstractmethod
     async def get_track_info(self, eid: str) -> ari.ElakshiTrack:
+        """Get the Elakshi track from the eid.
+
+        Args:
+            eid: EID to get the track info for.
+
+        Returns:
+            Elakshi track.
+        """
         ...

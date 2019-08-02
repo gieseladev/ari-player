@@ -60,6 +60,7 @@ def _setup_logging() -> None:
 
 
 async def run(config: "AriConfig") -> None:
+    """Run an Ari component with the given config."""
     txaio.config.loop = asyncio.get_event_loop()
 
     import ari
@@ -72,6 +73,7 @@ async def run(config: "AriConfig") -> None:
 
 
 def get_parser() -> argparse.ArgumentParser:
+    """Get an argument parser for Ari's cli."""
     parser = argparse.ArgumentParser()
 
     parser.add_argument("-c", "--config", default="config.toml", help="specify the location of the config file.")

@@ -80,7 +80,6 @@ class RedisAndesitePlayerState(andesite.AbstractPlayerState):
 
 class RedisPlayer(PlayerABC):
     """Player using Redis."""
-
     __slots__ = ("_manager",
                  "_redis", "_player_key", "_guild_id",
                  "_andesite_ws", "_andesite_state",
@@ -338,6 +337,12 @@ class RedisPlayer(PlayerABC):
         await self.__emit(events.QueueAdd(entry))
 
         await self._update()
+
+    async def dequeue(self, entry: Union[ari.Entry, str]) -> bool:
+        return await self._queue.remove(entry)
+
+    async def move(self, entry: Union[ari.Entry, str], index: int) -> bool:
+        return await self._queue.move(entry, index)
 
     async def _get_player(self) -> Optional[andesite.Player]:
         """Get the player for sure.
