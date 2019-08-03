@@ -1,9 +1,12 @@
 import asyncio
 import itertools
-from typing import Optional, Set, Tuple, List, Iterable
+from typing import Optional, Set, Tuple, List, Iterable, TYPE_CHECKING
 
 import aioredis
 import pytest
+
+if TYPE_CHECKING:
+    from _pytest.fixtures import FixtureRequest
 
 import ari
 
@@ -32,17 +35,36 @@ async def redis() -> aioredis.Redis:
         return r
 
 
-def get_redis_list(redis: aioredis.Redis) -> ari.RedisEntryList:
+def get_redis_list(redis: aioredis.Redis, name: str = None) -> ari.RedisEntryList:
     global list_id
 
-    key = f"ari:lists:{list_id}"
+    if name is None:
+        name = list_id
+    else:
+        name = f"list-{list_id}-{name}"
+
     list_id += 1
-    return ari.RedisEntryList(redis, key)
+
+    return ari.RedisEntryList(redis, f"ari:tests:{name}")
+
+
+def strip_prefix(s: str, prefix: str) -> str:
+    if s.startswith(prefix):
+        return s[len(prefix):]
+    else:
+        return s
 
 
 @pytest.fixture()
-async def redis_list(redis: aioredis.Redis) -> ari.RedisEntryList:
-    return get_redis_list(redis)
+async def redis_list(request: "FixtureRequest", redis: aioredis.Redis) -> ari.RedisEntryList:
+    try:
+        name = request.node.name
+    except Exception:
+        name = None
+    else:
+        name = strip_prefix(name, "test_")
+
+    return get_redis_list(redis, name=name)
 
 
 async def add_entries(l: ari.MutEntryListABC, *entries: ari.Entry) -> None:
