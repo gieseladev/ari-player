@@ -1,10 +1,10 @@
 import argparse
 import asyncio
 import logging
-import sentry_sdk
 import logging.config
 from typing import TYPE_CHECKING
 
+import sentry_sdk
 import txaio
 
 if TYPE_CHECKING:

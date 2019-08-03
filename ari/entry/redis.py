@@ -21,6 +21,7 @@ def create_entry(aid: str, raw_info: bytes) -> Entry:
     return Entry(aid, info[0])
 
 
+# Signature: (klist: str, khash: str | start: int, stop: int) -> [aid[], info[]]
 GET_ENTRIES: RedisLua[Tuple[List[bytes], List[bytes]]] = RedisLua(b"""
 local klist, khash = KEYS[1], KEYS[2]
 local start, stop = ARGV[1], ARGV[2]
@@ -35,6 +36,7 @@ local infos = redis.call("HMGET", khash, unpack(aids))
 return {aids, infos}
 """)
 
+# Signature: (klist: str | aid: str, index: int, whence: str) -> bool
 MOVE_ENTRY: RedisLua[int] = RedisLua(b"""
 local function get_index(key, value)
     local l = redis.call("LRANGE", key, 0, -1)
@@ -72,6 +74,7 @@ return 1
 """)
 
 # Pop an entry from a list
+# Signature: (klist: str, khash: str | pop_command: str) -> nil | [aid, info]
 POP_ENTRY: RedisLua[Optional[Tuple[bytes, bytes]]] = RedisLua(b"""
 local klist, khash = KEYS[1], KEYS[2]
 local pop_command = ARGV[1]
@@ -85,6 +88,8 @@ redis.call("HDEL", khash, aid)
 return {aid, info}
 """)
 
+# Fisher-Yates in Lua for Redis.
+# Signature: (klist: str | seed: int) -> nil
 SHUFFLE_ENTRIES = RedisLua(b"""
 local function shuffle(l)    
     for i = #l, 2, -1 do

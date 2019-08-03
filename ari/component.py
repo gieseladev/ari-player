@@ -7,8 +7,8 @@ from typing import Any, Dict, List, Optional
 
 import aioredis
 import andesite
-from autobahn.asyncio.component import Component
 from autobahn import wamp
+from autobahn.asyncio.component import Component
 
 import ari
 from ari import events
