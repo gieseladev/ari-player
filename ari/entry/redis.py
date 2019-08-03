@@ -6,7 +6,7 @@ import aioredis
 
 from ari.redis_lua import RedisLua
 from .entry import Entry
-from .list import MutEntryListABC
+from .list import MutEntryListABC, Whence
 
 __all__ = ["RedisEntryList"]
 
@@ -26,20 +26,47 @@ local klist, khash = KEYS[1], KEYS[2]
 local start, stop = ARGV[1], ARGV[2]
 
 local aids = redis.call("LRANGE", klist, start, stop)
+if #aids == 0 then 
+    return {aids, {}}
+end
+
 local infos = redis.call("HMGET", khash, unpack(aids))
 
 return {aids, infos}
 """)
 
 MOVE_ENTRY: RedisLua[int] = RedisLua(b"""
+local function get_index(key, value)
+    local l = redis.call("LRANGE", key, 0, -1)
+    for i = 1, #l do
+        if l[i] == value then
+            return i - 1
+        end
+    end
+    
+    return -1
+end
+
 local klist = KEYS[1]
-local aid, index = ARGV[1], ARGV[2]
+local aid, index, whence = ARGV[1], tonumber(ARGV[2]), ARGV[3]
 
-local pivot = redis.call("LINDEX", index)
-if pivot == nil then return 0 end
+local pivot = redis.call("LINDEX", klist, index)
+if not pivot then return 0 end
 
-redis.call("LINSERT", klist, "BEFORE", pivot, aid)
+if whence == "absolute" then
+    local current_index = get_index(klist, aid)
+    if current_index == -1 then return 0 end
+    
+    if current_index > index then   whence = "BEFORE"
+    else                            whence = "AFTER"
+    end
+elseif whence == "before" or whence == "after" then
+    whence = whence:upper()
+else                            return 0
+end
+
 redis.call("LREM", klist, 1, aid)
+redis.call("LINSERT", klist, whence, pivot, aid)
 
 return 1
 """)
@@ -50,28 +77,30 @@ local klist, khash = KEYS[1], KEYS[2]
 local pop_command = ARGV[1]
 
 local aid = redis.call(pop_command, klist)
-if aid == nil then return nil end
+if not aid then return nil end
 
-local info = redis.call("HGET, khash, aid)
+local info = redis.call("HGET", khash, aid)
 redis.call("HDEL", khash, aid)
 
 return {aid, info}
 """)
 
 SHUFFLE_ENTRIES = RedisLua(b"""
-local klist = KEYS[1]
-local seed = tonumber(ARGV[1])
-
-math.randomseed(seed)
-
-function shuffle(l)    
+local function shuffle(l)    
     for i = #l, 2, -1 do
         local j = math.random(i)
         l[i], l[j] = l[j], l[i]
     end
 end
 
-aids = redis.call("LRANGE", klist, 0, -1)
+local klist = KEYS[1]
+local seed = tonumber(ARGV[1])
+
+math.randomseed(seed)
+
+local aids = redis.call("LRANGE", klist, 0, -1)
+if #aids == 0 then return end
+
 shuffle(aids)
 redis.call("DEL", klist)
 redis.call("RPUSH", klist, unpack(aids))
@@ -101,23 +130,33 @@ class RedisEntryList(MutEntryListABC):
             if start is None:
                 start = 0
 
+            if stop is None:
+                stop = 0
+
             if step is None:
                 step = 1
 
             # reversed range
             if start > stop and step < 0:
-                start, stop = stop, start
+                start, stop = stop + 1, start
+            else:
+                # Python ranges are [start, stop), but Redis uses [start, stop]
+                stop -= 1
 
             aids, raw_infos = await GET_ENTRIES(
                 self._redis,
                 (self._order_list_key, self._entry_hash_key),
-                # Python ranges are [start, stop), but Redis uses [start, stop]
-                (start, stop - 1),
+                (start, stop),
                 encoding=None,
             )
 
+            if step > 0:
+                it_data = zip(aids, raw_infos)
+            else:
+                it_data = zip(reversed(aids), reversed(raw_infos))
+
             entries = []
-            for aid, raw_info in zip(aids, raw_infos):
+            for aid, raw_info in it_data:
                 entry = create_entry(aid.decode(), raw_info)
                 entries.append(entry)
 
@@ -148,7 +187,7 @@ class RedisEntryList(MutEntryListABC):
 
         return await rm_fut > 0
 
-    async def move(self, entry: Union[Entry, str], to_index: int) -> bool:
+    async def move(self, entry: Union[Entry, str], index: int, whence: Whence) -> bool:
         if isinstance(entry, Entry):
             aid = entry.aid
         else:
@@ -156,8 +195,8 @@ class RedisEntryList(MutEntryListABC):
 
         res = await MOVE_ENTRY(self._redis,
                                (self._order_list_key,),
-                               (aid, to_index))
-        return bool(res)
+                               (aid, index, whence.value))
+        return res == 1
 
     async def add_start(self, entry: Entry) -> None:
         tr = self._redis.multi_exec()
@@ -178,10 +217,13 @@ class RedisEntryList(MutEntryListABC):
     async def clear(self) -> None:
         await self._redis.delete(self._order_list_key, self._entry_hash_key)
 
-    async def shuffle(self) -> None:
+    async def shuffle(self, *, seed: int = None) -> None:
+        if seed is None:
+            seed = random.getrandbits(16)
+
         await SHUFFLE_ENTRIES(self._redis,
                               (self._order_list_key,),
-                              (random.getrandbits(16),))
+                              (seed,))
 
     async def pop_start(self) -> Optional[Entry]:
         raw_entry = await POP_ENTRY(self._redis,

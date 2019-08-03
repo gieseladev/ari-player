@@ -1,5 +1,5 @@
 import uuid
-from typing import Dict
+from typing import Dict, Any
 
 __all__ = ["Entry", "new_aid"]
 
@@ -32,6 +32,12 @@ class Entry:
 
     def __hash__(self) -> int:
         return hash(self.aid)
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, Entry):
+            return self.aid == other.aid
+        else:
+            return NotImplemented
 
     @classmethod
     def from_dict(cls, data: Dict[str, str]):

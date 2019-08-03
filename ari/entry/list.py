@@ -1,9 +1,12 @@
 import abc
+import enum
 from typing import List, Optional, Union, overload
 
 from .entry import Entry
 
-__all__ = ["EntryListABC", "MutEntryListABC", "get_entry_list_page"]
+__all__ = ["EntryListABC",
+           "Whence", "MutEntryListABC",
+           "get_entry_list_page"]
 
 
 # TODO enable capped list
@@ -11,6 +14,9 @@ __all__ = ["EntryListABC", "MutEntryListABC", "get_entry_list_page"]
 class EntryListABC(abc.ABC):
     """Read-only sequence of entries."""
     __slots__ = ()
+
+    def __getitem__(self, index: Union[int, str, slice]):
+        return self.get(index)
 
     @abc.abstractmethod
     async def get_length(self) -> int:
@@ -50,6 +56,13 @@ class EntryListABC(abc.ABC):
         ...
 
 
+class Whence(enum.Enum):
+    """How a position is to be interpreted."""
+    ABSOLUTE = "absolute"
+    BEFORE = "before"
+    AFTER = "after"
+
+
 class MutEntryListABC(EntryListABC, abc.ABC):
     """Mutable sequence of entries."""
     __slots__ = ()
@@ -67,12 +80,13 @@ class MutEntryListABC(EntryListABC, abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def move(self, entry: Union[Entry, str], to_index: int) -> bool:
+    async def move(self, entry: Union[Entry, str], index: int, whence: Whence) -> bool:
         """Move an entry in the list.
 
         Args:
             entry: Entry to move.
-            to_index: Index to move the entry to.
+            index: Index to move the entry to.
+            whence: How to interpret the given index.
 
         Returns:
             Whether or not the move succeeded.

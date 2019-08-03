@@ -55,11 +55,11 @@ class RedisLua(Generic[T]):
         return hash(self.__sha_digest)
 
     def __repr__(self) -> str:
-        indented_code = textwrap.indent(self.__code, "  ")
+        indented_code = textwrap.indent(self.__code.decode(), "  ")
         return f"RedisLua(\"\"\"\n{indented_code}\n\"\"\")"
 
     def __str__(self) -> str:
-        return f"RedisLua#{self.__sha_digest}"
+        return f"RedisLua#{self.__sha_digest.hex()}"
 
     async def __call__(self, redis: HasRedisExecute, keys: Collection[AnyStr], args: Iterable, *,
                        encoding: Optional[str] = DEFAULT) -> T:

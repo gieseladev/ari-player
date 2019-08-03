@@ -143,7 +143,7 @@ class PlayerABC(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def move(self, entry: Union[ari.Entry, str], index: int) -> bool:
+    async def move(self, entry: Union[ari.Entry, str], index: int, whence: ari.Whence) -> bool:
         """Move an entry in the queue.
 
         Args:
@@ -151,6 +151,7 @@ class PlayerABC(abc.ABC):
                 The entry must already be in the queue, otherwise it can't be
                 moved.
             index: Position to move the entry to.
+            whence: How to interpret the given index.
 
         Returns:
             Whether or not the entry was successfully moved to the new

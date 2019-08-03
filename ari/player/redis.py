@@ -341,8 +341,8 @@ class RedisPlayer(PlayerABC):
     async def dequeue(self, entry: Union[ari.Entry, str]) -> bool:
         return await self._queue.remove(entry)
 
-    async def move(self, entry: Union[ari.Entry, str], index: int) -> bool:
-        return await self._queue.move(entry, index)
+    async def move(self, entry: Union[ari.Entry, str], index: int, whence: ari.Whence) -> bool:
+        return await self._queue.move(entry, index, whence)
 
     async def _get_player(self) -> Optional[andesite.Player]:
         """Get the player for sure.
