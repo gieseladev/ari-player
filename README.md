@@ -1,5 +1,7 @@
 # Ari Player
 
+[![CircleCI](https://circleci.com/gh/gieseladev/ari-player.svg?style=svg)](https://circleci.com/gh/gieseladev/ari-player)
+
 Giesela's player component.
 
 

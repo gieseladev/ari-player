@@ -1,0 +1,68 @@
+version: "2.1"
+
+orbs:
+  docker: circleci/docker@0.5.13
+
+commands:
+  pipenv-install:
+    steps:
+      - run:
+          name: install pipenv
+          command: python -m pip install pipenv
+      - run:
+          name: install dependencies
+          command: python -m pipenv install --dev
+
+jobs:
+  test:
+    docker:
+      - image: circleci/python:3.7
+      - image: circleci/redis
+
+    steps:
+      - checkout
+      - pipenv-install
+      - run:
+          name: run tests
+          command: python -m pipenv run tests
+
+
+workflows:
+  version: "2"
+
+  test-and-push-docker-image:
+    jobs:
+      - test:
+          filters:
+            tags:
+              only: /v.*/
+
+      - docker/publish:
+          image: $DOCKER_IMAGE
+          tag: $CIRCLE_SHA1
+
+          context: Docker
+          requires:
+            - test
+
+      - docker/publish:
+          image: $DOCKER_IMAGE
+          tag: $CIRCLE_TAG
+
+          context: Docker
+          requires:
+            - test
+          filters: &version_tags_only
+            branches:
+              ignore: /.*/
+            tags:
+              only: /v.*/
+
+      - docker/publish:
+          image: $DOCKER_IMAGE
+          tag: latest
+
+          context: Docker
+          requires:
+            - test
+          filters: *version_tags_only
