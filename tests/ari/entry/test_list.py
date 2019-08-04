@@ -1,6 +1,6 @@
 import asyncio
 import itertools
-from typing import Optional, Set, Tuple, List, Iterable, TYPE_CHECKING
+from typing import Iterable, List, Optional, Set, TYPE_CHECKING, Tuple
 
 import aioredis
 import pytest
@@ -26,13 +26,18 @@ def event_loop():
 @pytest.fixture(scope="module")
 async def redis() -> aioredis.Redis:
     try:
+        print("connecting to redis instance")
         r = await aioredis.create_redis("redis://localhost")
     except OSError:
         pytest.skip("no redis instance")
-    else:
-        print("flushing redis")
-        await r.flushall()
-        return r
+        return
+
+    print("flushing redis")
+    await r.flushall()
+    yield r
+    print("closing connection")
+    r.close()
+    await r.wait_closed()
 
 
 def get_redis_list(redis: aioredis.Redis, name: str = None) -> ari.RedisEntryList:

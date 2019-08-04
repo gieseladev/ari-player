@@ -24,7 +24,7 @@ jobs:
       - pipenv-install
       - run:
           name: run tests
-          command: python -m pipenv run tests
+          command: python -m pipenv run tests -rA --verbose
 
 
 workflows:
@@ -41,6 +41,7 @@ workflows:
           image: $DOCKER_IMAGE
           tag: $CIRCLE_SHA1
 
+          name: docker/publish SHA1
           context: Docker
           requires:
             - test
@@ -49,6 +50,7 @@ workflows:
           image: $DOCKER_IMAGE
           tag: $CIRCLE_TAG
 
+          name: docker/publish tag
           context: Docker
           requires:
             - test
@@ -62,6 +64,7 @@ workflows:
           image: $DOCKER_IMAGE
           tag: latest
 
+          name: docker/publish latest
           context: Docker
           requires:
             - test
