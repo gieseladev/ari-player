@@ -32,3 +32,15 @@ class PlayerManagerABC(abc.ABC):
             Elakshi track.
         """
         ...
+
+    @abc.abstractmethod
+    async def get_audio_source(self, eid: str) -> ari.AudioSource:
+        """Get an audio source for the eid.
+
+        Args:
+            eid: EID to get an audio source for.
+
+        Returns:
+            Audio source.
+        """
+        ...

@@ -117,6 +117,10 @@ class AriServer(ari.PlayerManagerABC):
         await self._session.call("io.giesela.elakshi.get", eid)
         raise NotImplementedError
 
+    async def get_audio_source(self, eid: str) -> ari.AudioSource:
+        res = await self._session.call("io.giesela.elakshi.get_audio_source", eid)
+        return ari.AudioSource(**res)
+
     @wamp.subscribe("com.discord.on_voice_state_update")
     async def on_voice_state_update(self, update: Any) -> None:
         if int(update["user_id"]) != self.config.andesite.user_id:

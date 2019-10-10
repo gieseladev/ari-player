@@ -359,19 +359,19 @@ class RedisPlayer(PlayerABC):
 
     async def _get_lp_track(self, eid: str) -> str:
         """Generate the LavaPlayer track string for the eid."""
+        audio_source = await self._manager.get_audio_source(eid)
 
-        # elakshi_track = await self._manager.get_track_info(eid)
-        # TODO create lp track from elakshi
         lp_track = lptrack.Track(
             version=None,
-            source=lptrack.Youtube(),
+            source=lptrack.get_source(audio_source.source)(),
             info=lptrack.TrackInfo(
-                title=eid,
-                author="placeholder",
-                duration=205.,
-                identifier="Pkh8UtuejGw",
-                is_stream=False,
-                uri="https://www.youtube.com/watch?v=Pkh8UtuejGw",
+                title=f"Track {eid}",
+                author="Elakshi",
+                duration=audio_source.end_offset - audio_source.start_offset,
+                identifier=audio_source.identifier,
+                is_stream=audio_source.is_live,
+                # TODO use proper uri!
+                uri=f"https://www.youtube.com/watch?v={audio_source.identifier}",
             ),
         )
         return lptrack.encode(lp_track).decode()
