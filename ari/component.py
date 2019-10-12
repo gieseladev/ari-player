@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import logging
 import weakref
@@ -75,6 +76,28 @@ class AriServer(ari.PlayerManagerABC):
 
         self._voice_updates = {}
 
+    async def recover_state(self) -> None:
+        log.debug("recovering state")
+
+        loop = asyncio.get_event_loop()
+        sem = asyncio.Semaphore(value=10)
+
+        async def _load_player(_player: ari.PlayerABC) -> None:
+            try:
+                await _player.recover_state()
+            finally:
+                sem.release()
+
+        tasks: List[asyncio.Future] = []
+        async for guild_id in self._redis.isscan(f"{self._manager_key}:connected_players"):
+            # acquire the semaphore here so that we can block the loop.
+            # the semaphore is then released by _load_player.
+            await sem.acquire()
+            task = loop.create_task(_load_player(self.get_player(guild_id.decode())))
+            tasks.append(task)
+
+        await asyncio.gather(*tasks)
+
     def __create_player(self, guild_id: str) -> ari.RedisPlayer:
         player = ari.RedisPlayer(self, self._redis, f"{self._manager_key}:{guild_id}", self._andesite_ws, guild_id)
         player.observable.on(callback=self.on_player_event)
@@ -87,7 +110,9 @@ class AriServer(ari.PlayerManagerABC):
             return self._players[guild_id]
         except KeyError:
             player = self._players[guild_id] = self.__create_player(guild_id)
-            weakref.finalize(player, log.debug, "player of guild %s got garbage collected", guild_id)
+            if log.isEnabledFor(logging.DEBUG):
+                weakref.finalize(player, log.debug, "player of guild %s got garbage collected", guild_id)
+
             return player
 
     def __get_player_state(self, guild_id: int) -> andesite.AbstractPlayerState:
@@ -159,8 +184,10 @@ class AriServer(ari.PlayerManagerABC):
         channel_id = update.channel_id
         if channel_id:
             await player.on_connect(channel_id)
+            await self._redis.sadd(f"{self._manager_key}:connected_players", player.guild_id)
         else:
             await player.on_disconnect()
+            await self._redis.srem(f"{self._manager_key}:connected_players", player.guild_id)
 
     @wamp.register("connect")
     async def connect(self, guild_id: ari.SnowflakeType, channel_id: ari.SnowflakeType) -> None:
@@ -266,5 +293,7 @@ def create_component(server: AriServer, config: ari.Config) -> Component:
 
         await session.register(server, prefix=f"io.giesela.ari.")
         await session.subscribe(server)
+
+        await server.recover_state()
 
     return component

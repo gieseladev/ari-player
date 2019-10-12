@@ -167,3 +167,11 @@ class PlayerABC(abc.ABC):
     async def on_disconnect(self) -> None:
         """Called when the player is disconnected."""
         ...
+
+    @abc.abstractmethod
+    async def recover_state(self) -> None:
+        """Load the previous state.
+
+        This should be used to recover the state from a potential previous run.
+        """
+        ...

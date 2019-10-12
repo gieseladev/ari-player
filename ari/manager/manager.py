@@ -44,3 +44,13 @@ class PlayerManagerABC(abc.ABC):
             Audio source.
         """
         ...
+
+    @abc.abstractmethod
+    async def recover_state(self) -> None:
+        """Load the previous state.
+
+        Recovers all active players' state as well.
+
+        This should be used to recover the state from a potential previous run.
+        """
+        ...

@@ -253,6 +253,10 @@ class RedisPlayer(PlayerABC):
 
         await self.__emit_play(position=position)
 
+    async def recover_state(self) -> None:
+        log.debug("%s loading self", self)
+        await self._andesite_ws.load_player_state(self._andesite_state)
+
     async def _update(self, *, resume: bool = False) -> None:
         log.debug("%s updating self (resume=%s)", self, resume)
         connected, paused, current_entry = await asyncio.gather(
