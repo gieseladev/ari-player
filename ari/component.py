@@ -33,11 +33,11 @@ class VoiceUpdate:
         return self.state_update["session_id"]
 
     @property
-    def guild_id(self) -> str:
-        return self.server_update["guild_id"]
+    def guild_id(self) -> Optional[str]:
+        return self.state_update.get("guild_id")
 
     @property
-    def channel_id(self) -> str:
+    def channel_id(self) -> Optional[str]:
         return self.state_update["channel_id"]
 
 
@@ -126,6 +126,14 @@ class AriServer(ari.PlayerManagerABC):
 
         return value
 
+    def __clear_voice_update(self, guild_id: str) -> None:
+        try:
+            del self._voice_updates[guild_id]
+        except KeyError:
+            pass
+        else:
+            log.debug("cleared voice update for guild %s", guild_id)
+
     async def on_player_event(self, event: Any) -> None:
         if isinstance(event, events.AriEvent):
             kwargs = event.get_kwargs()
@@ -171,23 +179,31 @@ class AriServer(ari.PlayerManagerABC):
         await self.__on_voice_update(voice_update)
 
     async def __on_voice_update(self, update: VoiceUpdate) -> None:
-        if not update.done:
-            log.debug("not ready to send voice update yet: %s", update)
-            return
-
-        guild_id = int(update.guild_id)
-        log.debug("sending voice server update for %s", guild_id)
-        await self._andesite_ws.voice_server_update(guild_id, update.session_id, update.server_update)
+        guild_id = update.guild_id
+        if guild_id is None:
+            log.debug("voice update doesn't contain guild_id")
 
         player = self.get_player(guild_id)
 
         channel_id = update.channel_id
-        if channel_id:
-            await player.on_connect(channel_id)
-            await self._redis.sadd(f"{self._manager_key}:connected_players", player.guild_id)
-        else:
+        if not channel_id:
             await player.on_disconnect()
             await self._redis.srem(f"{self._manager_key}:connected_players", player.guild_id)
+
+            self.__clear_voice_update(guild_id)
+            return
+
+        if not update.done:
+            log.debug("not ready to send voice update yet: %s", update)
+            return
+
+        log.debug("sending voice server update for %s", guild_id)
+        await self._andesite_ws.voice_server_update(int(guild_id), update.session_id, update.server_update)
+
+        self.__clear_voice_update(guild_id)
+
+        await player.on_connect(channel_id)
+        await self._redis.sadd(f"{self._manager_key}:connected_players", player.guild_id)
 
     @wamp.register("connect")
     async def connect(self, guild_id: ari.SnowflakeType, channel_id: ari.SnowflakeType) -> None:
