@@ -179,8 +179,11 @@ class RedisPlayer(PlayerABC):
     async def on_disconnect(self) -> None:
         log.debug("%s disconnected", self)
 
-        await self._redis.delete(f"{self._player_key}:connected")
-        await self.pause(True)
+        await asyncio.gather(
+            self._redis.delete(f"{self._player_key}:connected"),
+            self._andesite_state.set_voice_server_update(None),
+            self.pause(True),
+        )
 
     async def on_track_end(self, event: andesite.TrackEndEvent) -> None:
         log.debug("%s track ended", event)
