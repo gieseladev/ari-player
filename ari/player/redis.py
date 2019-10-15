@@ -288,11 +288,24 @@ class RedisPlayer(PlayerABC):
 
         await self.__emit_play(entry=entry)
 
+    async def _preload_next(self) -> None:
+        entry = await self._queue.get(0)
+        if entry is None:
+            return
+
+        log.debug("%s preloading next entry %s", self, entry)
+        await self._get_lp_track(entry.eid)
+
+        # TODO do this properly!
+
     async def next(self) -> None:
         log.debug("%s playing next", self)
         entry = await self._queue.pop_start()
         await self.__emit(events.QueueRemove(entry))
         await self._play(entry)
+
+        loop = asyncio.get_event_loop()
+        loop.create_task(self._preload_next())
 
     async def _get_current_track_info(self) -> Optional[ari.ElakshiTrack]:
         entry = await self.get_current()
@@ -367,6 +380,8 @@ class RedisPlayer(PlayerABC):
     async def _get_lp_track(self, eid: str) -> str:
         """Generate the LavaPlayer track string for the eid."""
         audio_source = await self._manager.get_audio_source(eid)
+
+        # TODO respect the end offset and skip when reached.
 
         lp_track = lptrack.Track(
             version=None,
