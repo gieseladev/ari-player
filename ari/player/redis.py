@@ -259,14 +259,20 @@ class RedisPlayer(PlayerABC):
     async def recover_state(self) -> None:
         log.debug("%s loading self", self)
         await self._andesite_ws.load_player_state(self._andesite_state)
+        await self._update()
 
     async def _update(self, *, resume: bool = False) -> None:
         log.debug("%s updating self (resume=%s)", self, resume)
-        connected, paused, current_entry = await asyncio.gather(
+        connected, paused, current_entry, player = await asyncio.gather(
             self.connected(),
             self.paused(),
             self.get_current(),
+            self._get_player(),
         )
+
+        if not player or player.position is None:
+            log.debug("%s no player or not playing. Treating current entry as None", self)
+            current_entry = None
 
         if resume and connected and paused:
             await self.pause(False)
@@ -357,6 +363,8 @@ class RedisPlayer(PlayerABC):
         await self.__emit(events.QueueAdd(entry))
 
         await self._update()
+
+        # TODO preload next if len(queue) == 1
 
     async def dequeue(self, entry: Union[ari.Entry, str]) -> bool:
         return await self._queue.remove(entry)
