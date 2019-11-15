@@ -310,7 +310,7 @@ class RedisPlayer(PlayerABC):
         await self.__emit(events.QueueRemove(entry))
         await self._play(entry)
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         loop.create_task(self._preload_next())
 
     async def _get_current_track_info(self) -> Optional[ari.ElakshiTrack]:

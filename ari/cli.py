@@ -5,7 +5,6 @@ import logging.config
 from typing import TYPE_CHECKING
 
 import sentry_sdk
-import txaio
 
 if TYPE_CHECKING:
     from ari import Config as AriConfig
@@ -48,7 +47,7 @@ def _setup_logging() -> None:
             "andesite": {
                 "level": "DEBUG",
             },
-            "autobahn": {
+            "aiowamp": {
                 "level": "DEBUG",
             },
         },
@@ -62,17 +61,15 @@ def _setup_logging() -> None:
 
 async def run(config: "AriConfig") -> None:
     """Run an Ari component with the given config."""
-    txaio.config.loop = asyncio.get_event_loop()
-
     import ari
 
     sentry_sdk.init(config.sentry.dsn, release=f"ari@{ari.__version__}")
 
     server = await ari.create_ari_server(config)
-    component = ari.create_component(server, config)
+    # TODO wait for client to stop
 
-    log.info("starting component")
-    await component.start()
+    # this is just a poor man's wait_forever...
+    await asyncio.get_running_loop().create_future()
 
 
 def get_parser() -> argparse.ArgumentParser:

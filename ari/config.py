@@ -48,7 +48,7 @@ class Config:
     andesite: Andesite
 
     realm: str
-    transports: Union[List[dict], str]
+    url: str
 
     sentry: Sentry
 
