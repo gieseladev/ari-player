@@ -8,17 +8,14 @@ __all__ = ["Entry", "new_aid"]
 
 
 class Entry:
-    """Entry.
-
-    Attributes:
-        aid (str): Ari entry id.
-        eid (str): Elakshi track id.
-    """
+    """Track entry data."""
 
     __slots__ = ("aid", "eid")
 
     aid: str
+    """Ari entry id."""
     eid: str
+    """Elakshi track id."""
 
     def __init__(self, aid: str, eid: str) -> None:
         self.aid = aid
