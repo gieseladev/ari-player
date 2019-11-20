@@ -51,11 +51,13 @@
         },
         "aiowamp": {
             "hashes": [
-                "sha256:28e25544e75ccc15bb8fa101b497b2c1bcc5776000d339f63f082716b07df3b6",
-                "sha256:e8027a0551ef320fa1c5fd67a931f71031417d82b5bf2aa7d85fd66af0d7c59e"
+                "sha256:2a57b0818c954eb9c4f86a518d6d488870a15d6c161a8cf8d47c0d0962178436",
+                "sha256:2f903ac7c1cc4d2e95ec2e55299b8b21205b09513c0da2120eb6dc664a263cf3",
+                "sha256:af293ffba90971d2d6b42bd42f79b8ecf2d386524f9e591316d40f6785506551",
+                "sha256:eff1a06233af7b30d815fe82ff4589eed5033dd9db79765efc1711bac7de7a1d"
             ],
             "index": "pypi",
-            "version": "==0.0.2"
+            "version": "==0.1.0"
         },
         "andesite-py": {
             "hashes": [
@@ -346,6 +348,7 @@
                 "sha256:03472c30eb2c5d1ba9227e4c2ca66ab8287fbfbbda3888aa93dc2e28fc6811b4",
                 "sha256:75a9445bac02d8d058d5e1fe689654ba5a6556a1dfd8ce6ec55a0ed79866cfa6"
             ],
+            "markers": "sys_platform == 'win32'",
             "version": "==1.3.0"
         },
         "attrs": {
@@ -408,11 +411,11 @@
         },
         "pytest": {
             "hashes": [
-                "sha256:15837d2880cb94821087bc07476892ea740696b20e90288fd6c19e44b435abdb",
-                "sha256:b6cf7ad9064049ee486586b3a0ddd70dc5136c40e1147e7d286efd77ba66c5eb"
+                "sha256:1897d74f60a5d8be02e06d708b41bf2445da2ee777066bd68edf14474fc201eb",
+                "sha256:f6a567e20c04259d41adce9a360bd8991e6aa29dd9695c5e6bd25a9779272673"
             ],
             "index": "pypi",
-            "version": "==5.2.3"
+            "version": "==5.3.0"
         },
         "pytest-asyncio": {
             "hashes": [
