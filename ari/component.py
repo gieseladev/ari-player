@@ -289,6 +289,7 @@ async def create_ari_server(config: ari.Config) -> AriServer:
     andesite_ws = andesite.create_pool((), config.andesite.get_node_tuples(),
                                        user_id=config.andesite.user_id)
     server = AriServer(config, client, redis, config.redis.namespace, andesite_ws)
-    await aiowamp.templ.apply_template(server, client)
+    await aiowamp.templ.apply_template(server, client,
+                                       uri_prefix="io.giesela.ari.")
 
     return server
