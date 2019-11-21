@@ -76,6 +76,9 @@ class AriServer(ari.PlayerManagerABC):
 
         self._voice_updates = {}
 
+    async def wait_until_done(self) -> None:
+        await self._client.wait_until_done()
+
     async def recover_state(self) -> None:
         log.debug("recovering state")
 

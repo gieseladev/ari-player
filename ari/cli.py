@@ -66,10 +66,7 @@ async def run(config: "AriConfig") -> None:
     sentry_sdk.init(config.sentry.dsn, release=f"ari@{ari.__version__}")
 
     server = await ari.create_ari_server(config)
-    # TODO wait for client to stop
-
-    # this is just a poor man's wait_forever...
-    await asyncio.get_running_loop().create_future()
+    await server.wait_until_done()
 
 
 def get_parser() -> argparse.ArgumentParser:
