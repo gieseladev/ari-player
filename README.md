@@ -40,10 +40,8 @@ environment variable takes precedence).
 The following is a representation of the config:
 
 ```yaml
-realm:    sample realm name
-transports:
-  - url:  "rs://localhost:8000"
-    type: rawsocket
+realm:  sample realm name
+url:    "tcp://localhost:8000"
 
 redis:
     address:    "redis://localhost:6379"  

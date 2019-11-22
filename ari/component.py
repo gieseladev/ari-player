@@ -7,14 +7,14 @@ import weakref
 from typing import Any, Dict, List, Optional
 
 import aioredis
+import aiowamp
+import aiowamp.templ
 import andesite
-from autobahn import wamp
-from autobahn.asyncio.component import Component
 
 import ari
 from ari import events
 
-__all__ = ["AriServer", "create_ari_server", "create_component"]
+__all__ = ["AriServer", "create_ari_server"]
 
 log = logging.getLogger(__name__)
 
@@ -43,12 +43,14 @@ class VoiceUpdate:
 
 class AriServer(ari.PlayerManagerABC):
     __slots__ = ("config",
+                 "_client",
                  "_redis", "_manager_key", "_andesite_ws",
                  "_players",
-                 "_session",
                  "_voice_updates")
 
     config: ari.Config
+
+    _client: aiowamp.ClientABC
 
     _redis: aioredis.Redis
     _manager_key: str
@@ -56,13 +58,13 @@ class AriServer(ari.PlayerManagerABC):
 
     _players: weakref.WeakValueDictionary
 
-    _session: Optional[wamp.ISession]
-
     _voice_updates: Dict[str, VoiceUpdate]
 
-    def __init__(self, config: ari.Config, redis: aioredis.Redis, manager_key: str,
+    def __init__(self, config: ari.Config, client: aiowamp.ClientABC,
+                 redis: aioredis.Redis, manager_key: str,
                  andesite_ws: andesite.WebSocketInterface) -> None:
         self.config = config
+        self._client = client
 
         self._redis = redis
         self._manager_key = manager_key
@@ -72,14 +74,15 @@ class AriServer(ari.PlayerManagerABC):
 
         self._players = weakref.WeakValueDictionary()
 
-        self._session = None
-
         self._voice_updates = {}
+
+    async def wait_until_done(self) -> None:
+        await self._client.wait_until_done()
 
     async def recover_state(self) -> None:
         log.debug("recovering state")
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         sem = asyncio.Semaphore(value=10)
 
         async def _load_player(_player: ari.PlayerABC) -> None:
@@ -136,25 +139,23 @@ class AriServer(ari.PlayerManagerABC):
 
     async def on_player_event(self, event: Any) -> None:
         if isinstance(event, events.AriEvent):
-            kwargs = event.get_kwargs()
-            kwargs["options"] = wamp.PublishOptions(acknowledge=True)
-
             log.debug("publishing event: %s", event)
-            await self._session.publish(event.uri, *event.get_args(), **kwargs)
+            await self._client.publish(event.uri, *event.get_args(),
+                                       kwargs=event.get_kwargs())
 
     async def on_andesite_track_end(self, event: andesite.TrackEndEvent) -> None:
         player = self.get_player(event.guild_id)
         await player.on_track_end(event)
 
     async def get_track_info(self, eid: str) -> ari.ElakshiTrack:
-        await self._session.call("io.giesela.elakshi.get", eid)
+        await self._client.call("io.giesela.elakshi.get", eid)
         raise NotImplementedError
 
     async def get_audio_source(self, eid: str) -> ari.AudioSource:
-        res = await self._session.call("io.giesela.elakshi.get_audio_source", eid)
-        return ari.AudioSource(**res)
+        res = await self._client.call("io.giesela.elakshi.get_audio_source", eid)
+        return ari.AudioSource(**res.kwargs)
 
-    @wamp.subscribe("com.discord.on_voice_state_update")
+    @aiowamp.templ.event("com.discord.on_voice_state_update")
     async def on_voice_state_update(self, update: Any) -> None:
         if int(update["user_id"]) != self.config.andesite.user_id:
             return
@@ -171,7 +172,7 @@ class AriServer(ari.PlayerManagerABC):
         voice_update.state_update = update
         await self.__on_voice_update(voice_update)
 
-    @wamp.subscribe("com.discord.on_voice_server_update")
+    @aiowamp.templ.event("com.discord.on_voice_server_update")
     async def on_voice_server_update(self, update: Any) -> None:
         log.debug("received voice server update: %s", update)
         voice_update = self.__get_voice_update(update["guild_id"])
@@ -205,31 +206,31 @@ class AriServer(ari.PlayerManagerABC):
         await player.on_connect(channel_id)
         await self._redis.sadd(f"{self._manager_key}:connected_players", player.guild_id)
 
-    @wamp.register("connect")
+    @aiowamp.templ.procedure("connect")
     async def connect(self, guild_id: ari.SnowflakeType, channel_id: ari.SnowflakeType) -> None:
         log.debug("connecting player in guild %s to %s", guild_id, channel_id)
-        await self._session.call("com.discord.update_voice_state", guild_id, channel_id)
+        await self._client.call("com.discord.update_voice_state", guild_id, channel_id)
 
-    @wamp.register("disconnect")
+    @aiowamp.templ.procedure("disconnect")
     async def disconnect(self, guild_id: ari.SnowflakeType) -> None:
         log.debug("disconnecting player in guild %s", guild_id)
-        await self._session.call("com.discord.update_voice_state", guild_id)
+        await self._client.call("com.discord.update_voice_state", guild_id)
 
-    @wamp.register("queue")
+    @aiowamp.templ.procedure("queue")
     async def queue(self, guild_id: ari.SnowflakeType, page: int, entries_per_page: int = 50) -> List[Dict[str, str]]:
         player = self.get_player(guild_id)
         entries = await ari.get_entry_list_page(player.queue, page, entries_per_page)
         ser_entries = [entry.as_dict() for entry in entries]
         return ser_entries
 
-    @wamp.register("history")
+    @aiowamp.templ.procedure("history")
     async def history(self, guild_id: ari.SnowflakeType, page: int, entries_per_page: int = 50):
         player = self.get_player(guild_id)
         entries = await ari.get_entry_list_page(player.history, page, entries_per_page)
         ser_entries = [entry.as_dict() for entry in entries]
         return ser_entries
 
-    @wamp.register("enqueue")
+    @aiowamp.templ.procedure("enqueue")
     async def enqueue(self, guild_id: ari.SnowflakeType, eid: str) -> str:
         player = self.get_player(guild_id)
 
@@ -238,78 +239,60 @@ class AriServer(ari.PlayerManagerABC):
 
         return entry.aid
 
-    @wamp.register("dequeue")
+    @aiowamp.templ.procedure("dequeue")
     async def dequeue(self, guild_id: ari.SnowflakeType, aid: str) -> bool:
         return await self.get_player(guild_id).dequeue(aid)
 
-    @wamp.register("move")
+    @aiowamp.templ.procedure("move")
     async def move(self, guild_id: ari.SnowflakeType, aid: str, index: int, whence: str) -> bool:
         try:
             whence = ari.Whence(whence)
         except ValueError:
-            raise wamp.ApplicationError(
-                wamp.ApplicationError.INVALID_ARGUMENT,
+            raise aiowamp.InvocationError(
+                aiowamp.uri.INVALID_ARGUMENT,
                 "invalid whence argument",
-                possible_values=[val.name for val in ari.Whence],
-            )
+                kwargs={"possible_values": [val.name for val in ari.Whence]}, )
 
         return await self.get_player(guild_id).move(aid, index, whence)
 
-    @wamp.register("pause")
+    @aiowamp.templ.procedure("pause")
     async def pause(self, guild_id: ari.SnowflakeType, pause: bool) -> None:
         await self.get_player(guild_id).pause(pause)
 
-    @wamp.register("set_volume")
+    @aiowamp.templ.procedure("set_volume")
     async def set_volume(self, guild_id: ari.SnowflakeType, volume: float) -> None:
         await self.get_player(guild_id).set_volume(volume)
 
-    @wamp.register("seek")
+    @aiowamp.templ.procedure("seek")
     async def seek(self, guild_id: ari.SnowflakeType, position: float) -> None:
         await self.get_player(guild_id).seek(position)
 
-    @wamp.register("skip_next")
+    @aiowamp.templ.procedure("skip_next")
     async def skip_next(self, guild_id: ari.SnowflakeType) -> None:
         await self.get_player(guild_id).next()
 
-    @wamp.register("skip_next_chapter")
+    @aiowamp.templ.procedure("skip_next_chapter")
     async def skip_next_chapter(self, guild_id: ari.SnowflakeType) -> None:
         await self.get_player(guild_id).next_chapter()
 
-    @wamp.register("skip_previous")
+    @aiowamp.templ.procedure("skip_previous")
     async def skip_previous(self, guild_id: ari.SnowflakeType) -> None:
         await self.get_player(guild_id).previous()
 
-    @wamp.register("skip_previous_chapter")
+    @aiowamp.templ.procedure("skip_previous_chapter")
     async def skip_previous_chapter(self, guild_id: ari.SnowflakeType) -> None:
         await self.get_player(guild_id).previous_chapter()
 
 
 async def create_ari_server(config: ari.Config) -> AriServer:
     """Create the Ari server."""
+    client = await aiowamp.connect(config.url, realm=config.realm)
     redis = await aioredis.create_redis_pool(config.redis.address)
     await redis.select(config.redis.database)
     andesite_ws = andesite.create_pool((), config.andesite.get_node_tuples(),
                                        user_id=config.andesite.user_id)
-    server = AriServer(config, redis, config.redis.namespace, andesite_ws)
+    server = AriServer(config, client, redis, config.redis.namespace, andesite_ws)
+    await aiowamp.templ.apply_template(server, client,
+                                       uri_prefix="io.giesela.ari.")
 
     return server
-
-
-def create_component(server: AriServer, config: ari.Config) -> Component:
-    """Create the WAMP component."""
-    component = Component(
-        realm=config.realm,
-        transports=config.transports,
-    )
-
-    @component.on_join
-    async def joined(session: wamp.ISession, details: wamp.SessionDetails) -> None:
-        log.info("joined session (realm: %s)", details.realm)
-        server._session = session
-
-        await session.register(server, prefix=f"io.giesela.ari.")
-        await session.subscribe(server)
-
-        await server.recover_state()
-
-    return component

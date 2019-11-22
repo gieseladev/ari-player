@@ -8,12 +8,12 @@ RUN apt-get update && apt-get install -y \
 
 RUN pip install --upgrade \
     pipenv \
-    "https://github.com/Nuitka/Nuitka/archive/develop.zip"
+    nuitka
 
 COPY Pipfile .
 COPY Pipfile.lock .
 
-RUN pipenv install --system --deploy
+RUN pipenv install --system --deploy --dev
 
 WORKDIR /ari
 

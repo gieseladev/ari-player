@@ -35,9 +35,6 @@ class RedisLua(Generic[T]):
 
     Optimistically tries to use the SHA digest to call the code.
     If it fails with a `NoScriptError` the code is eval'd directly.
-
-    Args:
-        code: Lua code.
     """
     __slots__ = ("__code", "__sha_digest")
 
