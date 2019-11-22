@@ -5,8 +5,6 @@ import ari
 
 
 class AriEventMeta(type):
-    uri: Optional[str]
-
     def __new__(mcs, *args, uri: Optional[str]) -> type:
         cls = type.__new__(mcs, *args)
         cls.uri = uri
