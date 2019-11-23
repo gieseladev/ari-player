@@ -26,12 +26,6 @@ are available in the same realm.
 
 ## Configuration
 
-Ari uses [kofi](https://github.com/gieseladev/konfi) for its
-configuration management. If you're familiar with it, you can take a
-look at [config.py](ari/config.py) and you'll know everything you need
-to. If you have no idea what a "konfi" even is then just ignore all of
-this and continue reading.
-
 There are two different ways you can use to configure Ari. Using
 Configuration file specified in the `--config` command-line option and
 using environment variables (when both sources specify a key, the
