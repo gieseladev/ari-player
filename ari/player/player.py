@@ -100,25 +100,8 @@ class PlayerABC(abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def next_chapter(self) -> None:
-        """Play the next chapter from the current entry.
-
-        If the current entry doesn't have a next chapter, play the next entry.
-        """
-        ...
-
-    @abc.abstractmethod
     async def previous(self) -> None:
         """Play the previous entry from the history."""
-        ...
-
-    @abc.abstractmethod
-    async def previous_chapter(self) -> None:
-        """Play the previous chapter from the current entry.
-
-        If the current entry doesn't have a previous chapter, play the previous
-        entry.
-        """
         ...
 
     @abc.abstractmethod

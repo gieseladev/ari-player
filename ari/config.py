@@ -1,4 +1,4 @@
-from typing import Iterable, List, Optional, Tuple, Union
+from typing import Iterable, List, Optional, Tuple
 
 import konfi
 
@@ -49,6 +49,8 @@ class Config:
 
     realm: str
     url: str
+
+    uri_prefix: str = "io.giesela.ari."
 
     sentry: Sentry
 

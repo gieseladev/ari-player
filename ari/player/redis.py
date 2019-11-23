@@ -313,25 +313,6 @@ class RedisPlayer(PlayerABC):
         loop = asyncio.get_running_loop()
         loop.create_task(self._preload_next())
 
-    async def _get_current_track_info(self) -> Optional[ari.ElakshiTrack]:
-        entry = await self.get_current()
-        if entry is None:
-            return None
-        else:
-            return await self._manager.get_track_info(entry.eid)
-
-    async def next_chapter(self) -> None:
-        log.debug("%s seeking to next chapter", self)
-        info = await self._get_current_track_info()
-        if info is None:
-            await self.next()
-        else:
-            pass
-
-        # TODO
-        raise NotImplementedError
-        # TODO event for chapter skip
-
     async def previous(self) -> None:
         log.debug("%s playing previous entry", self)
         entry = await self._history.pop_start()
@@ -345,18 +326,6 @@ class RedisPlayer(PlayerABC):
 
         await self._play(entry)
 
-    async def previous_chapter(self) -> None:
-        log.debug("%s seeking to previous chapter", self)
-        info = await self._get_current_track_info()
-        if info is None:
-            await self.previous()
-        else:
-            pass
-
-        # TODO
-        raise NotImplementedError
-        # TODO event for chapter skip
-
     async def enqueue(self, entry: ari.Entry) -> None:
         log.debug("%s adding entry to the queue: %s", self, entry)
         await self._queue.add_end(entry)
@@ -364,7 +333,8 @@ class RedisPlayer(PlayerABC):
 
         await self._update()
 
-        # TODO preload next if len(queue) == 1
+        if await self._queue.get_length():
+            await self._preload_next()
 
     async def dequeue(self, entry: Union[ari.Entry, str]) -> bool:
         return await self._queue.remove(entry)

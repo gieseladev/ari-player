@@ -21,6 +21,8 @@ log = logging.getLogger(__name__)
 
 @dataclasses.dataclass()
 class VoiceUpdate:
+    __slots__ = ("state_update", "server_update")
+
     state_update: Optional[Dict[str, Any]]
     server_update: Optional[Dict[str, str]]
 
@@ -147,10 +149,6 @@ class AriServer(ari.PlayerManagerABC):
         player = self.get_player(event.guild_id)
         await player.on_track_end(event)
 
-    async def get_track_info(self, eid: str) -> ari.ElakshiTrack:
-        await self._client.call("io.giesela.elakshi.get", eid)
-        raise NotImplementedError
-
     async def get_audio_source(self, eid: str) -> ari.AudioSource:
         res = await self._client.call("io.giesela.elakshi.get_audio_source", eid)
         return ari.AudioSource(**res.kwargs)
@@ -205,6 +203,11 @@ class AriServer(ari.PlayerManagerABC):
 
         await player.on_connect(channel_id)
         await self._redis.sadd(f"{self._manager_key}:connected_players", player.guild_id)
+
+    @aiowamp.templ.procedure("meta.assert_ready")
+    async def assert_ready(self) -> None:
+        await self._client.call("com.discord.meta.assert_ready")
+        await self._client.call("io.giesela.elakshi.meta.assert_ready")
 
     @aiowamp.templ.procedure("connect")
     async def connect(self, guild_id: ari.SnowflakeType, channel_id: ari.SnowflakeType) -> None:
@@ -271,17 +274,9 @@ class AriServer(ari.PlayerManagerABC):
     async def skip_next(self, guild_id: ari.SnowflakeType) -> None:
         await self.get_player(guild_id).next()
 
-    @aiowamp.templ.procedure("skip_next_chapter")
-    async def skip_next_chapter(self, guild_id: ari.SnowflakeType) -> None:
-        await self.get_player(guild_id).next_chapter()
-
     @aiowamp.templ.procedure("skip_previous")
     async def skip_previous(self, guild_id: ari.SnowflakeType) -> None:
         await self.get_player(guild_id).previous()
-
-    @aiowamp.templ.procedure("skip_previous_chapter")
-    async def skip_previous_chapter(self, guild_id: ari.SnowflakeType) -> None:
-        await self.get_player(guild_id).previous_chapter()
 
 
 async def create_ari_server(config: ari.Config) -> AriServer:
@@ -293,6 +288,6 @@ async def create_ari_server(config: ari.Config) -> AriServer:
                                        user_id=config.andesite.user_id)
     server = AriServer(config, client, redis, config.redis.namespace, andesite_ws)
     await aiowamp.templ.apply_template(server, client,
-                                       uri_prefix="io.giesela.ari.")
+                                       uri_prefix=config.uri_prefix)
 
     return server
