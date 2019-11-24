@@ -1,3 +1,4 @@
+import itertools
 import marshal
 import random
 from typing import List, Optional, Tuple, Union
@@ -12,13 +13,13 @@ __all__ = ["RedisEntryList"]
 
 
 def encode_entry_info(entry: Entry) -> bytes:
-    info = [entry.eid]
+    info = [entry.eid, entry.meta]
     return marshal.dumps(info)
 
 
 def create_entry(aid: str, raw_info: bytes) -> Entry:
     info = marshal.loads(raw_info)
-    return Entry(aid, info[0])
+    return Entry(aid, info[0], info[1])
 
 
 # Signature: (klist: str, khash: str | start: int, stop: int) -> [aid[], info[]]
@@ -114,58 +115,79 @@ redis.call("RPUSH", klist, unpack(aids))
 
 class RedisEntryList(MutEntryListABC):
     """Entry list which uses redis to store the list."""
-    __slots__ = ("_redis", "_order_list_key", "_entry_hash_key")
+    __slots__ = ("_redis",
+                 "_order_list_key", "_entry_hash_key",
+                 "_max_len")
 
     _redis: aioredis.Redis
     _order_list_key: str
     _entry_hash_key: str
 
-    def __init__(self, redis: aioredis.Redis, key: str) -> None:
+    _max_len: Optional[int]
+
+    def __init__(self, redis: aioredis.Redis, key: str, *,
+                 max_len: int = None) -> None:
         self._redis = redis
         self._order_list_key = f"{key}:order"
         self._entry_hash_key = f"{key}:info"
 
+        self._max_len = max_len
+
     async def get_length(self) -> int:
         return await self._redis.llen(self._order_list_key)
 
+    async def get_slice(self, start: Optional[int], stop: Optional[int], step: Optional[int]) -> List[Entry]:
+        """Get a slice of the list.
+
+        Args:
+            start: Start index (inclusive). Defaults to 0.
+            stop: Stop index (exclusive). Defaults to 0.
+            step: Iteration step. Defaults to 1.
+
+        Returns:
+            List containing all entries in the bounds.
+        """
+        if start is None:
+            start = 0
+        if stop is None:
+            stop = 0
+        if step is None:
+            step = 1
+        elif step == 0:
+            raise ValueError("step cannot be zero")
+
+        # reversed range
+        if start > stop and step < 0:
+            start, stop = stop + 1, start
+        else:
+            # Python ranges are [start, stop), but Redis uses [start, stop]
+            stop -= 1
+
+        aids, raw_infos = await GET_ENTRIES(
+            self._redis,
+            (self._order_list_key, self._entry_hash_key),
+            (start, stop),
+            encoding=None,
+        )
+
+        if step > 0:
+            it_data = zip(aids, raw_infos)
+        else:
+            it_data = zip(reversed(aids), reversed(raw_infos))
+
+        if abs(step) != 1:
+            it_data = itertools.islice(it_data, None, None, step)
+
+        entries = []
+        for aid, raw_info in it_data:
+            entry = create_entry(aid.decode(), raw_info)
+            entries.append(entry)
+
+        return entries
+
     async def get(self, index: Union[int, str, slice]) -> Union[Optional[Entry], List[Entry]]:
         if isinstance(index, slice):
-            # stop can't (?) be None
-            start, stop, step = index.start, index.stop, index.step
-            if start is None:
-                start = 0
-
-            if stop is None:
-                stop = 0
-
-            if step is None:
-                step = 1
-
-            # reversed range
-            if start > stop and step < 0:
-                start, stop = stop + 1, start
-            else:
-                # Python ranges are [start, stop), but Redis uses [start, stop]
-                stop -= 1
-
-            aids, raw_infos = await GET_ENTRIES(
-                self._redis,
-                (self._order_list_key, self._entry_hash_key),
-                (start, stop),
-                encoding=None,
-            )
-
-            if step > 0:
-                it_data = zip(aids, raw_infos)
-            else:
-                it_data = zip(reversed(aids), reversed(raw_infos))
-
-            entries = []
-            for aid, raw_info in it_data:
-                entry = create_entry(aid.decode(), raw_info)
-                entries.append(entry)
-
-            return entries
+            return await self.get_slice(index.start, index.stop, index.step)
 
         if isinstance(index, int):
             aid = await self._redis.lindex(self._order_list_key, index, encoding="utf-8")

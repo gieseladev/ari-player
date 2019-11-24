@@ -12,9 +12,9 @@ connect     ``(guild id, channel id) -> void``
 disconnect  ``(guild id) -> void``
     Disconnect from the current voice channel.
 
-queue   ``(guild id, page, *, [entries_per_page = 50]) -> Entry[]``
+queue   ``(guild id, page, *, entries_per_page = 50) -> Entry[]``
     Get a page from the queue.
-history ``(guild id, page, *, [entries_per_page = 50]) -> Entry[]``
+history ``(guild id, page, *, entries_per_page = 50) -> Entry[]``
     Get a page from the play history.
 
 enqueue ``(guild id, eid) -> aid``
