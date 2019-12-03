@@ -50,7 +50,7 @@ class Config:
     realm: str
     url: str
 
-    uri_prefix: str = "io.giesela.ari."
+    uri_prefix: str = "io.ari."
 
     sentry: Sentry
 

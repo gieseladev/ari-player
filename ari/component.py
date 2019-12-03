@@ -150,7 +150,7 @@ class AriServer(ari.PlayerManagerABC):
         await player.on_track_end(event)
 
     async def get_audio_source(self, eid: str) -> ari.AudioSource:
-        res = await self._client.call("io.giesela.elakshi.get_audio_source", eid)
+        res = await self._client.call("io.elakshi.get_audio_source", eid)
         return ari.AudioSource(**res.kwargs)
 
     @aiowamp.templ.event("com.discord.on_voice_state_update")
@@ -207,7 +207,7 @@ class AriServer(ari.PlayerManagerABC):
     @aiowamp.templ.procedure("meta.assert_ready")
     async def assert_ready(self) -> None:
         await self._client.call("com.discord.meta.assert_ready")
-        await self._client.call("io.giesela.elakshi.meta.assert_ready")
+        await self._client.call("io.elakshi.meta.assert_ready")
 
     @aiowamp.templ.procedure("connect")
     async def connect(self, guild_id: ari.SnowflakeType, channel_id: ari.SnowflakeType) -> None:
@@ -237,6 +237,7 @@ class AriServer(ari.PlayerManagerABC):
     async def enqueue(self, guild_id: ari.SnowflakeType, eid: str) -> str:
         player = self.get_player(guild_id)
 
+        # TODO accept meta
         entry = ari.Entry(ari.new_aid(), eid)
         await player.enqueue(entry)
 

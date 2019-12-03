@@ -94,20 +94,26 @@ class MutEntryListABC(EntryListABC, abc.ABC):
         ...
 
     @abc.abstractmethod
-    async def add_start(self, entry: Entry) -> None:
+    async def add_start(self, entry: Entry) -> int:
         """Add an entry to the front of the list.
 
         Args:
             entry: Entry to add.
+
+        Returns:
+            New length of the list.
         """
         ...
 
     @abc.abstractmethod
-    async def add_end(self, entry: Entry) -> None:
+    async def add_end(self, entry: Entry) -> int:
         """Add an entry to the end of the list.
 
         Args:
             entry: Entry to add.
+
+        Returns:
+            New length of the list.
         """
         ...
 
@@ -132,11 +138,11 @@ class MutEntryListABC(EntryListABC, abc.ABC):
         ...
 
 
-async def get_entry_list_page(l: EntryListABC, page: int, entries_per_page: int) -> List[Entry]:
+async def get_entry_list_page(el: EntryListABC, page: int, entries_per_page: int) -> List[Entry]:
     """Get a page of entries.
 
     Args:
-        l: Entry list to get the page from
+        el: Entry list to get the page from
         page: Page index to get.
         entries_per_page: The amount of entries per page
 
@@ -145,4 +151,4 @@ async def get_entry_list_page(l: EntryListABC, page: int, entries_per_page: int)
     """
     start = page * entries_per_page
     end = start + entries_per_page
-    return await l.get(slice(start, end))
+    return await el.get(slice(start, end))

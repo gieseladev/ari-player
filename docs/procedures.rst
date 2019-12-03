@@ -2,7 +2,9 @@ Procedures
 ==========
 
 All procedures are prefixed with the *uri_prefix* config value which defaults to
-``io.giesela.ari.``.
+``io.ari.``.
+This prefix is configurable using the `uri_prefix` key, but this is mainly for
+development purposes.
 
 Player
 ------

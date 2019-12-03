@@ -225,21 +225,25 @@ class RedisEntryList(MutEntryListABC):
                                (aid, index, whence.value))
         return res == 1
 
-    async def add_start(self, entry: Entry) -> None:
+    async def add_start(self, entry: Entry) -> int:
         tr = self._redis.multi_exec()
 
-        tr.lpush(self._order_list_key, entry.aid)
+        length_fut = tr.lpush(self._order_list_key, entry.aid)
         tr.hset(self._entry_hash_key, entry.aid, encode_entry_info(entry))
 
         await tr.execute()
 
-    async def add_end(self, entry: Entry) -> None:
+        return length_fut.result()
+
+    async def add_end(self, entry: Entry) -> int:
         tr = self._redis.multi_exec()
 
-        tr.rpush(self._order_list_key, entry.aid)
+        length_fut = tr.rpush(self._order_list_key, entry.aid)
         tr.hset(self._entry_hash_key, entry.aid, encode_entry_info(entry))
 
         await tr.execute()
+
+        return length_fut.result()
 
     async def clear(self) -> None:
         await self._redis.delete(self._order_list_key, self._entry_hash_key)

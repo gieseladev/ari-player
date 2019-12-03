@@ -5,14 +5,18 @@ import ari
 
 
 class AriEventMeta(type):
+    __slots__ = ("uri",)
+
+    uri: Optional[str]
+
     def __new__(mcs, *args, uri: Optional[str]) -> type:
-        cls = type.__new__(mcs, *args)
+        cls = super().__new__(mcs, *args)
         cls.uri = uri
         return cls
 
 
 class AriEvent(metaclass=AriEventMeta, uri=None):
-    uri: Optional[str]
+    __slots__ = ("guild_id",)
 
     guild_id: Optional[int]
 
@@ -29,14 +33,16 @@ class AriEvent(metaclass=AriEventMeta, uri=None):
 
 
 @dataclasses.dataclass()
-class Play(AriEvent, uri="on_play"):
+class PlayUpdate(AriEvent, uri="on_play_update"):
+    __slots__ = ("entry", "paused", "position")
+
     entry: Optional[ari.Entry]
     paused: bool
     position: Optional[float]
 
     def get_args(self) -> Tuple[Any, ...]:
         entry = self.entry.as_dict() if self.entry else None
-        return self.guild_id, entry,
+        return self.guild_id, entry
 
     def get_kwargs(self) -> Dict[str, Any]:
         return {
@@ -46,39 +52,87 @@ class Play(AriEvent, uri="on_play"):
 
 
 @dataclasses.dataclass()
-class Stop(AriEvent, uri="on_stop"):
-    ...
+class Play(AriEvent, uri="on_play"):
+    __slots__ = ("entry",)
+
+    entry: Optional[ari.Entry]
+
+    def get_args(self) -> Tuple[Any, ...]:
+        entry = self.entry.as_dict() if self.entry else None
+        return self.guild_id, entry
+
+
+@dataclasses.dataclass()
+class Pause(AriEvent, uri="on_pause"):
+    __slots__ = ("paused",)
+
+    paused: bool
+
+
+@dataclasses.dataclass()
+class Seek(AriEvent, uri="on_seek"):
+    __slots__ = ("position",)
+
+    position: float
 
 
 @dataclasses.dataclass()
 class VolumeChange(AriEvent, uri="on_volume_change"):
+    __slots__ = ("old", "new")
+
     old: float
     new: float
 
 
 @dataclasses.dataclass()
+class Stop(AriEvent, uri="on_stop"):
+    __slots__ = ()
+
+
+@dataclasses.dataclass()
 class _EntryBase(AriEvent, uri=None):
+    __slots__ = ("entry",)
+
     entry: ari.Entry
 
     def get_args(self) -> Tuple[Any, ...]:
-        return self.guild_id, self.entry.as_dict(),
+        return self.guild_id, self.entry.as_dict()
 
 
 @dataclasses.dataclass()
 class QueueAdd(_EntryBase, uri="on_queue_add"):
-    ...
+    __slots__ = ("position",)
+
+    position: int
+
+    def get_kwargs(self) -> Dict[str, Any]:
+        d = super().get_kwargs()
+        d.update(position=self.position)
+        return d
 
 
 @dataclasses.dataclass()
 class QueueRemove(_EntryBase, uri="on_queue_remove"):
-    ...
+    __slots__ = ()
+
+
+@dataclasses.dataclass()
+class QueueMove(_EntryBase, uri="on_queue_move"):
+    __slots__ = ("position",)
+
+    position: int
+
+    def get_kwargs(self) -> Dict[str, Any]:
+        d = super().get_kwargs()
+        d.update(position=self.position)
+        return d
 
 
 @dataclasses.dataclass()
 class HistoryAdd(_EntryBase, uri="on_history_add"):
-    ...
+    __slots__ = ()
 
 
 @dataclasses.dataclass()
 class HistoryRemove(_EntryBase, uri="on_history_remove"):
-    ...
+    __slots__ = ()

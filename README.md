@@ -21,7 +21,7 @@ Ari doesn't work all by itself, it assumes that the following components
 are available in the same realm.
 
 - [Wampus](https://github.com/gieseladev/wampus) `com.discord`
-- [Elakshi](https://github.com/gieseladev/elakshi) `io.giesela.elakshi`
+- [Elakshi](https://github.com/gieseladev/elakshi) `io.elakshi`
 
 
 ## Configuration

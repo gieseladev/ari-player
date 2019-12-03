@@ -146,10 +146,10 @@ class RedisPlayer(PlayerABC):
         event.guild_id = self._guild_id
         return self._observable.emit(event)
 
-    async def __emit_play(self, *,
-                          entry: ari.Entry = DEFAULT,
-                          paused: bool = DEFAULT,
-                          position: float = DEFAULT) -> None:
+    async def __emit_play_update(self, *,
+                                 entry: ari.Entry = DEFAULT,
+                                 paused: bool = DEFAULT,
+                                 position: float = DEFAULT) -> None:
         data = {}
 
         async def setter(key: str, value: Union[Any, DEFAULT], corof: Callable[[], Awaitable[Any]]) -> None:
@@ -166,7 +166,7 @@ class RedisPlayer(PlayerABC):
             setter("position", position, self.get_position),
         )
 
-        await self.__emit(events.Play(**data))
+        await self.__emit(events.PlayUpdate(**data))
 
     async def connected(self) -> bool:
         return await self._redis.get(f"{self._player_key}:connected") == b"1"
@@ -232,7 +232,8 @@ class RedisPlayer(PlayerABC):
         log.debug("%s (un)pausing pause=%s", self, pause)
         await self._andesite_ws.pause(self._guild_id, pause)
 
-        await self.__emit_play(paused=pause)
+        await self.__emit(events.Pause(pause))
+        await self.__emit_play_update(paused=pause)
 
     async def paused(self) -> bool:
         player = await self._get_player()
@@ -254,7 +255,8 @@ class RedisPlayer(PlayerABC):
         log.debug("%s seeking to %s", self, position)
         await self._andesite_ws.seek(self._guild_id, position)
 
-        await self.__emit_play(position=position)
+        await self.__emit(events.Seek(position))
+        await self.__emit_play_update(position=position)
 
     async def recover_state(self) -> None:
         log.debug("%s loading self", self)
@@ -286,61 +288,59 @@ class RedisPlayer(PlayerABC):
             await self._andesite_ws.stop(self._guild_id)
             await self._redis.delete(f"{self._player_key}:current")
         else:
-            track = await self._get_lp_track(entry.eid)
-            await self._andesite_ws.play(self._guild_id, track)
+            src = await self._manager.get_audio_source(entry.eid)
+            await self._andesite_ws.play(self._guild_id, get_lp_track(src),
+                                         start=src.start_offset,
+                                         end=src.end_offset)
 
             raw_enty = marshal.dumps(entry.as_dict())
             await self._redis.set(f"{self._player_key}:current", raw_enty)
 
-        await self.__emit_play(entry=entry)
-
-    async def _preload_next(self) -> None:
-        entry = await self._queue.get(0)
-        if entry is None:
-            return
-
-        log.debug("%s preloading next entry %s", self, entry)
-        await self._get_lp_track(entry.eid)
-
-        # TODO do this properly!
+        await self.__emit(events.Play(entry))
+        await self.__emit_play_update(entry=entry)
 
     async def next(self) -> None:
         log.debug("%s playing next", self)
         entry = await self._queue.pop_start()
-        await self.__emit(events.QueueRemove(entry))
-        await self._play(entry)
+        if entry:
+            await self.__emit(events.QueueRemove(entry))
 
-        loop = asyncio.get_running_loop()
-        loop.create_task(self._preload_next())
+        await self._play(entry)
 
     async def previous(self) -> None:
         log.debug("%s playing previous entry", self)
         entry = await self._history.pop_start()
-        await self.__emit(events.HistoryRemove(entry))
+        if entry:
+            await self.__emit(events.HistoryRemove(entry))
 
         current = await self.get_current()
         if current is not None:
             await self._queue.add_start(current)
-            # TODO queue event position?
-            await self.__emit(events.QueueAdd(current))
+            await self.__emit(events.QueueAdd(current, 0))
 
         await self._play(entry)
 
     async def enqueue(self, entry: ari.Entry) -> None:
         log.debug("%s adding entry to the queue: %s", self, entry)
-        await self._queue.add_end(entry)
-        await self.__emit(events.QueueAdd(entry))
+        queue_len = await self._queue.add_end(entry)
+        await self.__emit(events.QueueAdd(entry, queue_len - 1))
 
         await self._update()
 
-        if await self._queue.get_length():
-            await self._preload_next()
-
     async def dequeue(self, entry: Union[ari.Entry, str]) -> bool:
-        return await self._queue.remove(entry)
+        if not await self._queue.remove(entry):
+            return False
+
+        await self.__emit(events.QueueRemove(entry))
+        return True
 
     async def move(self, entry: Union[ari.Entry, str], index: int, whence: ari.Whence) -> bool:
-        return await self._queue.move(entry, index, whence)
+        if not await self._queue.move(entry, index, whence):
+            return False
+
+        # FIXME get actual index!
+        await self.__emit(events.QueueMove(entry, index))
+        return True
 
     async def _get_player(self) -> Optional[andesite.Player]:
         """Get the player for sure.
@@ -354,27 +354,6 @@ class RedisPlayer(PlayerABC):
             player = await self._andesite_ws.get_player(self._guild_id)
 
         return player
-
-    async def _get_lp_track(self, eid: str) -> str:
-        """Generate the LavaPlayer track string for the eid."""
-        audio_source = await self._manager.get_audio_source(eid)
-
-        # TODO respect the end offset and skip when reached.
-
-        lp_track = lptrack.Track(
-            version=None,
-            source=lptrack.get_source(audio_source.source)(),
-            info=lptrack.TrackInfo(
-                title=f"Track {eid}",
-                author="Elakshi",
-                duration=audio_source.end_offset - audio_source.start_offset,
-                identifier=audio_source.identifier,
-                is_stream=audio_source.is_live,
-                # TODO use proper uri!
-                uri=f"https://www.youtube.com/watch?v={audio_source.identifier}",
-            ),
-        )
-        return lptrack.encode(lp_track).decode()
 
 
 async def get_optional_transform(redis: aioredis.Redis, key: str, transformer: Optional[Callable]) -> Optional[Any]:
@@ -422,3 +401,22 @@ async def set_optional_transform(redis: aioredis.Redis, data: Optional[Any],
         return
 
     await redis.set(key, ser_data)
+
+
+def get_lp_track(audio_source: ari.AudioSource) -> str:
+    """Generate the LavaPlayer track string an audio source."""
+    lp_track = lptrack.Track(
+        version=None,
+        source=lptrack.get_source(audio_source.source)(),
+        info=lptrack.TrackInfo(
+            title=f"Track {audio_source.identifier}",
+            author="Elakshi",
+            duration=audio_source.end_offset - audio_source.start_offset,
+            identifier=audio_source.identifier,
+            is_stream=audio_source.is_live,
+            # TODO use proper uri!
+            uri=f"https://www.youtube.com/watch?v={audio_source.identifier}",
+        ),
+    )
+
+    return lptrack.encode(lp_track).decode()
