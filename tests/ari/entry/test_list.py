@@ -1,6 +1,6 @@
 import asyncio
 import itertools
-from typing import Iterable, List, Optional, Set, TYPE_CHECKING, Tuple
+from typing import Iterable, List, TYPE_CHECKING
 
 import aioredis
 import pytest
@@ -108,6 +108,18 @@ async def test_list_get(redis_list: ari.RedisEntryList) -> None:
     assert await redis_list[-1:-5:-1] == ABCD[-1:-5:-1]
 
 
+async def test_list_index(redis_list: ari.RedisEntryList) -> None:
+    await add_entries(redis_list, *ABCD)
+
+    assert await redis_list.index(ENTRY_A) == 0
+    assert await redis_list.index(ENTRY_B) == 1
+    assert await redis_list.index(ENTRY_C) == 2
+    assert await redis_list.index(ENTRY_D) == 3
+
+    with pytest.raises(ValueError):
+        await redis_list.index(create_entry("nope"))
+
+
 async def test_list_add(redis_list: ari.RedisEntryList) -> None:
     await redis_list.add_start(ENTRY_A)
     await redis_list.add_end(ENTRY_B)
@@ -157,35 +169,25 @@ async def test_list_move(redis_list: ari.RedisEntryList):
 
     assert await redis_list.move(ENTRY_D, 0, ari.Whence.ABSOLUTE)
     # [d, a, b, c]
+    assert await redis_list.to_absolute_index(0, ari.Whence.ABSOLUTE) == 0
     assert await redis_list[0] == ENTRY_D
 
     assert await redis_list.move(ENTRY_D.aid, 3, ari.Whence.AFTER)
     # [a, b, c, d]
+    assert await redis_list.to_absolute_index(3, ari.Whence.AFTER) == 3
+
     assert await redis_list.pop_end() == ENTRY_D
     # [a, b, c]
 
     assert await redis_list.move(ENTRY_B, 2, ari.Whence.BEFORE)
     # [a, b, c]
+    assert await redis_list.to_absolute_index(2, ari.Whence.BEFORE) == 1
     assert await redis_list[1:] == [ENTRY_B, ENTRY_C]
 
     assert await redis_list.move(ENTRY_B.aid, 0, ari.Whence.BEFORE)
     # [b, a, c]
+    assert await redis_list.to_absolute_index(0, ari.Whence.BEFORE) == 0
     assert await redis_list[:] == [ENTRY_B, ENTRY_A, ENTRY_C]
-
-
-async def run_shuffle(l: ari.RedisEntryList,
-                      permutations: Set[Tuple[ari.Entry, ...]],
-                      max_shuffles: int) -> Optional[int]:
-    for i in range(max_shuffles):
-        await l.shuffle()
-        current = tuple(await l[:])
-        permutations.discard(current)
-
-        if not permutations:
-            print(f"found all permutations after {i + 1} shuffles")
-            return i
-
-    return None
 
 
 async def test_list_shuffle(redis_list: ari.RedisEntryList):

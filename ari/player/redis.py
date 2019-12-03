@@ -342,7 +342,7 @@ class RedisPlayer(PlayerABC):
         if not await self._queue.move(entry, index, whence):
             return False
 
-        # FIXME get actual index!
+        index = await self._queue.to_absolute_index(index, whence)
         await self.__emit(events.QueueMove(entry, index))
         return True
 
@@ -418,8 +418,7 @@ def get_lp_track(audio_source: ari.AudioSource) -> str:
             duration=audio_source.end_offset - audio_source.start_offset,
             identifier=audio_source.identifier,
             is_stream=audio_source.is_live,
-            # TODO use proper uri!
-            uri=f"https://www.youtube.com/watch?v={audio_source.identifier}",
+            uri=audio_source.uri,
         ),
     )
 

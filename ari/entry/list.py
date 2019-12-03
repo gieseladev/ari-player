@@ -55,6 +55,21 @@ class EntryListABC(abc.ABC):
         """
         ...
 
+    @abc.abstractmethod
+    async def index(self, entry: Union[Entry, str]) -> int:
+        """Get the index of an entry in the list.
+
+        Args:
+            entry: Entry or aid to get index for.
+
+        Returns:
+            Index of the entry.
+
+        Raises:
+            ValueError: If the entry isn't present in the list.
+        """
+        ...
+
 
 class Whence(enum.Enum):
     """How a position is to be interpreted."""

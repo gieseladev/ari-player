@@ -14,6 +14,11 @@ Ari's current implementation uses
 [Andesite](https://github.com/natanbc/andesite-node) as its audio
 player, so at least one Andesite node is required.
 
+[Redis](https://redis.io/) is used to store player states.
+
+> Ari is designed to work with Redis 5.
+> It might work with older versions, but there's no guarantee.
+
 
 ### Required Components
 

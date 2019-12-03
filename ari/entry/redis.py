@@ -37,18 +37,46 @@ local infos = redis.call("HMGET", khash, unpack(aids))
 return {aids, infos}
 """)
 
-# Signature: (klist: str | aid: str, index: int, whence: str) -> bool
-MOVE_ENTRY: RedisLua[int] = RedisLua(b"""
-local function get_index(key, value)
-    local l = redis.call("LRANGE", key, 0, -1)
-    for i = 1, #l do
-        if l[i] == value then
-            return i - 1
+# Lua function for getting the index of a value in a redis list
+# Signature: (key: str, target: any, page_size:int = 500) -> int
+_INDEX_FN_CODE = """
+local function get_index(key, target_value, page_size)
+    page_size = page_size or 500
+    
+    local page = 0
+    
+    while true do
+        local start_index = page * page_size
+        local values = redis.call("LRANGE", key, start_index, start_index * page_size - 1)
+        if #values == 0 then break end
+        
+        for i, val in ipairs(values) do
+            if val == target_value then
+                return i - 1
+            end
         end
+        
+        page = page + 1
     end
     
     return -1
 end
+"""
+
+# Index an entry.
+# Signature: (klist: str | aid: str) -> nil
+INDEX_ENTRY = RedisLua(f"""
+{_INDEX_FN_CODE}
+
+local klist = KEYS[1]
+local target_aid = ARGV[1]
+
+return get_index(klist, target_aid)
+""")
+
+# Signature: (klist: str | aid: str, index: int, whence: str) -> bool
+MOVE_ENTRY: RedisLua[int] = RedisLua(f"""
+{_INDEX_FN_CODE}
 
 local klist = KEYS[1]
 local aid, index, whence = ARGV[1], tonumber(ARGV[2]), ARGV[3]
@@ -198,6 +226,25 @@ class RedisEntryList(MutEntryListABC):
 
         raw_info = await self._redis.hget(f"{self._entry_hash_key}", aid, encoding=None)
         return create_entry(aid, raw_info)
+
+    async def index(self, entry: Union[Entry, str]) -> int:
+        aid = entry.aid if isinstance(entry, Entry) else entry
+
+        index = await INDEX_ENTRY(self._redis,
+                                  (self._order_list_key,),
+                                  (aid,))
+        if index == -1:
+            raise ValueError(f"entry {entry} not in {self}")
+
+        return index
+
+    async def to_absolute_index(self, index: int, whence: Whence) -> int:
+        if whence == Whence.BEFORE:
+            index = max(0, index - 1)
+        elif whence == Whence.AFTER:
+            index = min(index + 1, await self.get_length() - 1)
+
+        return index
 
     async def remove(self, entry: Union[Entry, str]) -> bool:
         if isinstance(entry, Entry):
