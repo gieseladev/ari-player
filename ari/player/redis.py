@@ -176,6 +176,8 @@ class RedisPlayer(PlayerABC):
         await self._redis.set(f"{self._player_key}:connected", b"1")
         await self._update(resume=True)
 
+        await self.__emit(events.Connect(channel_id))
+
     async def on_disconnect(self) -> None:
         log.debug("%s disconnected", self)
 
@@ -184,6 +186,8 @@ class RedisPlayer(PlayerABC):
             self._andesite_state.set_voice_server_update(None),
             self.pause(True),
         )
+
+        await self.__emit(events.Connect(None))
 
     async def on_track_end(self, event: andesite.TrackEndEvent) -> None:
         log.debug("%s track ended", event)

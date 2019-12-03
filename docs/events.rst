@@ -6,6 +6,9 @@ Like the procedures, the events start with the `io.ari.` prefix.
 Player
 ------
 
+on_connect
+    Connection status changes.
+
 on_play_update
     Update event.
 

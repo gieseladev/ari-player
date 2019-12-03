@@ -142,7 +142,8 @@ class AriServer(ari.PlayerManagerABC):
     async def on_player_event(self, event: Any) -> None:
         if isinstance(event, events.AriEvent):
             log.debug("publishing event: %s", event)
-            await self._client.publish(event.uri, *event.get_args(),
+            uri = self.config.uri_prefix + event.uri
+            await self._client.publish(uri, *event.get_args(),
                                        kwargs=event.get_kwargs())
 
     async def on_andesite_track_end(self, event: andesite.TrackEndEvent) -> None:

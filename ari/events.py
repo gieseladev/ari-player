@@ -1,13 +1,11 @@
 import dataclasses
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, ClassVar, Dict, Optional, Tuple
 
 import ari
 
 
 class AriEventMeta(type):
-    __slots__ = ("uri",)
-
-    uri: Optional[str]
+    __slots__ = ()
 
     def __new__(mcs, *args, uri: Optional[str]) -> type:
         cls = super().__new__(mcs, *args)
@@ -16,6 +14,8 @@ class AriEventMeta(type):
 
 
 class AriEvent(metaclass=AriEventMeta, uri=None):
+    uri: ClassVar[Optional[str]]
+
     __slots__ = ("guild_id",)
 
     guild_id: Optional[int]
@@ -33,6 +33,13 @@ class AriEvent(metaclass=AriEventMeta, uri=None):
 
 
 @dataclasses.dataclass()
+class Connect(AriEvent, uri="on_connect"):
+    __slots__ = ("channel_id",)
+
+    channel_id: Optional[str]
+
+
+@dataclasses.dataclass()
 class PlayUpdate(AriEvent, uri="on_play_update"):
     __slots__ = ("entry", "paused", "position")
 
@@ -41,11 +48,11 @@ class PlayUpdate(AriEvent, uri="on_play_update"):
     position: Optional[float]
 
     def get_args(self) -> Tuple[Any, ...]:
-        entry = self.entry.as_dict() if self.entry else None
-        return self.guild_id, entry
+        return self.guild_id,
 
     def get_kwargs(self) -> Dict[str, Any]:
         return {
+            "entry": self.entry.as_dict() if self.entry else None,
             "paused": self.paused,
             "position": self.position,
         }
